@@ -165,32 +165,32 @@ export function Dashboard() {
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
                       <div className="size-10 rounded-2xl bg-sesi-blue/10 flex items-center justify-center text-sesi-blue font-black text-xs">
-                        {loan.beneficiaryName.split(' ').map(n => n[0]).join('')}
+                        {(loan.beneficiaryName || 'U').split(' ').map(n => n[0]).join('')}
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-sm font-black text-slate-900">{loan.beneficiaryName}</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">{loan.operatorName}</span>
+                        <span className="text-sm font-black text-slate-900">{loan.beneficiaryName || 'N/A'}</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">{loan.operatorName || 'Sistema'}</span>
                       </div>
                     </div>
                   </td>
                   <td className="px-8 py-5">
                     <div className="flex flex-wrap gap-1.5">
-                      {loan.items.slice(0, 3).map(item => (
+                      {(loan.items || []).slice(0, 3).map(item => (
                         <span key={item} className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black font-mono border border-slate-200">
                           {item}
                         </span>
                       ))}
-                      {loan.items.length > 3 && (
+                      {(loan.items || []).length > 3 && (
                         <span className="px-2 py-1 bg-sesi-yellow/20 text-sesi-yellow rounded-lg text-[10px] font-black border border-sesi-yellow/30">
-                          +{loan.items.length - 3}
+                          +{(loan.items || []).length - 3}
                         </span>
                       )}
                     </div>
                   </td>
                   <td className="px-8 py-5">
                     <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-600">{new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                      <span className="text-[10px] font-bold text-slate-400">{new Date(loan.loanDate).toLocaleDateString('pt-BR')}</span>
+                      <span className="text-sm font-bold text-slate-600">{loan.loanDate ? new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{loan.loanDate ? new Date(loan.loanDate).toLocaleDateString('pt-BR') : '--/--/--'}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5">

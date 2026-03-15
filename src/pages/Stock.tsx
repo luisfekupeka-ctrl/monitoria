@@ -102,12 +102,14 @@ export function Stock() {
   };
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         p.code.toLowerCase().includes(searchTerm.toLowerCase());
+    const name = p.name || '';
+    const code = p.code || '';
+    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !categoryFilter || p.category === categoryFilter;
     const matchesStatus = !statusFilter || 
-                         (statusFilter === 'low' && p.quantity <= p.minQuantity) ||
-                         (statusFilter === 'normal' && p.quantity > p.minQuantity);
+                         (statusFilter === 'low' && p.quantity <= (p.minQuantity ?? 0)) ||
+                         (statusFilter === 'normal' && p.quantity > (p.minQuantity ?? 0));
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
