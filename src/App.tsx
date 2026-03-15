@@ -29,8 +29,25 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sesi-blue"></div>
+      </div>
+    );
+  }
+
+  if (!user || user.role !== 'admin') {
+    return <Navigate to="/" />;
+  }
+
+  return <Layout>{children}</Layout>;
+}
+
 export default function App() {
-  const { user } = useAuth();
   return (
     <AuthProvider>
       <BrowserRouter>
@@ -43,11 +60,7 @@ export default function App() {
           <Route path="/emprestimos" element={<PrivateRoute><Loans /></PrivateRoute>} />
           <Route path="/usuarios" element={<PrivateRoute><Users /></PrivateRoute>} />
           <Route path="/relatorios" element={<PrivateRoute><Reports /></PrivateRoute>} />
-          <Route path="/gestao-acesso" element={
-            <PrivateRoute>
-              {user?.role === 'admin' ? <AdminManagement /> : <Navigate to="/" />}
-            </PrivateRoute>
-          } />
+          <Route path="/gestao-acesso" element={<AdminRoute><AdminManagement /></AdminRoute>} />
           
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
