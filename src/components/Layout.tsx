@@ -9,7 +9,8 @@ import {
   BarChart4, 
   LogOut,
   Monitor,
-  ArrowLeftRight
+  Search,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
@@ -69,17 +70,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="p-4 border-t border-slate-100">
-          <div className="bg-amber-50 p-4 rounded-xl flex items-start gap-3 mb-4">
-            <div className="text-amber-500">
-              <span className="material-symbols-outlined text-xl">tips_and_updates</span>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-900">Dica do dia</p>
-              <p className="text-[10px] text-slate-500 mt-1 leading-tight">
-                Verifique notebooks com devolução atrasada.
-              </p>
-            </div>
-          </div>
 
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
@@ -107,7 +97,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex-1 max-w-xl">
             <div className="relative group">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-sesi-blue transition-colors">
-                <span className="material-symbols-outlined text-xl">search</span>
+                <Search size={20} />
               </span>
               <input 
                 type="text" 
@@ -118,7 +108,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-4">
             <button className="size-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:text-sesi-blue transition-colors relative">
-              <span className="material-symbols-outlined">notifications</span>
+              <Bell size={20} />
               <span className="absolute top-2 right-2 size-2 bg-sesi-yellow rounded-full border-2 border-white"></span>
             </button>
           </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Laptop, 
   Handshake, 
@@ -6,7 +7,8 @@ import {
   ArrowRightLeft,
   Plus,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  ChevronRight
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Product, Loan, Notebook } from '../types';
@@ -104,10 +106,13 @@ export function Dashboard() {
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Dashboard Overview</h2>
           <p className="text-slate-500 text-sm mt-1">Bem-vindo de volta! Aqui está o resumo do inventário hoje.</p>
         </div>
-        <button className="flex items-center gap-2 bg-sesi-yellow px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-amber-400 transition-all shadow-lg shadow-sesi-yellow/20 text-slate-900">
+        <Link 
+          to="/emprestimos"
+          className="flex items-center gap-2 bg-sesi-yellow px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-amber-400 transition-all shadow-lg shadow-sesi-yellow/20 text-slate-900"
+        >
           <Plus size={18} />
           Novo Registro
-        </button>
+        </Link>
       </div>
 
       {/* KPI Cards */}
@@ -202,7 +207,7 @@ export function Dashboard() {
                   </td>
                   <td className="px-8 py-5 text-right">
                     <button className="size-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-sesi-blue transition-all">
-                      <span className="material-symbols-outlined text-xl">chevron_right</span>
+                      <ChevronRight size={18} />
                     </button>
                   </td>
                 </tr>

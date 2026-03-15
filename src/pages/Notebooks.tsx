@@ -146,6 +146,13 @@ export function Notebooks() {
             <Hash size={18} />
             Cadastrar Intervalo
           </button>
+          <button 
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
+          >
+            <FileDown size={18} />
+            Exportar Excel
+          </button>
           <label className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all cursor-pointer">
             <FileUp size={18} />
             Importar Excel
