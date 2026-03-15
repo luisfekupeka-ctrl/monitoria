@@ -116,11 +116,27 @@ export function Notebooks() {
       id: Math.random().toString(36).substr(2, 9),
       created_by: user?.name || 'Monitor'
     }));
-
-    await supabase.from('notebooks').insert(mappedItems);
     
-    setIsRangeModalOpen(false);
-    fetchNotebooks();
+    try {
+      let { error } = await supabase.from('notebooks').insert(mappedItems);
+      
+      if (error && error.message.includes('created_by')) {
+        console.warn('Fallback: Coluna created_by não encontrada. Inserindo sem ela.');
+        const fallbackItems = newItems.map(item => ({
+          ...item,
+          id: Math.random().toString(36).substr(2, 9)
+        }));
+        const { error: fallbackError } = await supabase.from('notebooks').insert(fallbackItems);
+        if (fallbackError) throw fallbackError;
+      } else if (error) {
+        throw error;
+      }
+      
+      setIsRangeModalOpen(false);
+      fetchNotebooks();
+    } catch (err: any) {
+      alert('Erro ao cadastrar intervalo: ' + err.message);
+    }
   };
 
   const filteredNotebooks = notebooks
@@ -424,20 +440,36 @@ export function Notebooks() {
               const formData = new FormData(e.currentTarget);
               const data = Object.fromEntries(formData.entries());
               
-              if (editingNotebook) {
-                await supabase.from('notebooks')
-                  .update({ ...data, status: editingNotebook.status })
-                  .eq('id', editingNotebook.id);
-              } else {
-                await supabase.from('notebooks').insert({
-                  ...data,
-                  status: 'available',
-                  created_by: user?.name || 'Monitor'
-                });
+              try {
+                if (editingNotebook) {
+                  const { error } = await supabase.from('notebooks')
+                    .update({ ...data, status: editingNotebook.status })
+                    .eq('id', editingNotebook.id);
+                  if (error) throw error;
+                } else {
+                  let { error } = await supabase.from('notebooks').insert({
+                    ...data,
+                    status: 'available',
+                    created_by: user?.name || 'Monitor'
+                  });
+                  
+                  if (error && error.message.includes('created_by')) {
+                    console.warn('Fallback: Coluna created_by ausente. Inserindo sem ela.');
+                    const { error: fallbackError } = await supabase.from('notebooks').insert({
+                      ...data,
+                      status: 'available'
+                    });
+                    if (fallbackError) throw fallbackError;
+                  } else if (error) {
+                    throw error;
+                  }
+                }
+                
+                setIsModalOpen(false);
+                fetchNotebooks();
+              } catch (err: any) {
+                alert('Erro ao salvar equipamento: ' + err.message);
               }
-              
-              setIsModalOpen(false);
-              fetchNotebooks();
             }}>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Código</label>
