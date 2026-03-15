@@ -103,15 +103,51 @@ export function Users() {
         <AnimatePresence mode="popLayout">
           {filteredBeneficiaries.map((beneficiary, index) => {
             const userLoans = activeLoans.filter(l => l.beneficiaryId === beneficiary.id);
-            const totalItems = userLoans.reduce((acc, loan) => acc + loan.items.length, 0);
-            const itemLabel = totalItems === 1 ? 'equipamento' : 'equipamentos';
-            const itemsList = userLoans.flatMap(l => l.items).join(', ');
+            const totalItems = userLoans.reduce((acc, loan) => acc + (loan.items?.length || 0), 0);
+            const itemsList = userLoans.flatMap(l => l.items || []);
+            const firstName = beneficiary.name.split(' ')[0];
+
+            // Smart message logic based on time and context
+            const now = new Date();
+            const cutoffHour = 17;
+            const cutoffMinute = 45;
+            const isBeforeCutoff = now.getHours() < cutoffHour || (now.getHours() === cutoffHour && now.getMinutes() < cutoffMinute);
+
+            let message = '';
+            let buttonLabel = 'Aviso';
+            let buttonColor = 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'; // default green
+
+            if (totalItems === 0) {
+              // No items — generic reminder
+              message = `Olá ${firstName}, lembramos que os equipamentos emprestados pela Monitoria precisam ser devolvidos até às 17:45 hoje. Obrigado!`;
+            } else if (isBeforeCutoff) {
+              // CENÁRIO 1: Antes das 17:45 — lembrete educado
+              message = `Olá ${firstName}, aqui é a Monitoria SESI! 😊\n\nApenas um lembrete amigável: você está com ${totalItems} ${totalItems === 1 ? 'equipamento' : 'equipamentos'} emprestado(s) (${itemsList.join(', ')}).\n\nLembramos que o prazo de devolução é até às *17:45 de hoje*.\n\nQualquer dúvida, estamos à disposição. Obrigado! 🙏`;
+              buttonLabel = 'Lembrete';
+              buttonColor = 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100';
+            } else if (!isBeforeCutoff && totalItems > 0) {
+              // CENÁRIO 2: Depois das 17:45 — cobrança educada
+              message = `Olá ${firstName}, aqui é a Monitoria SESI.\n\nNotamos que o horário de devolução (17:45) já passou e você ainda está com ${totalItems} ${totalItems === 1 ? 'equipamento' : 'equipamentos'}: *${itemsList.join(', ')}*.\n\nPedimos gentilmente que realize a devolução o mais breve possível para que possamos manter o controle do acervo.\n\nAgradecemos a compreensão! 🙏`;
+              buttonLabel = 'Cobrança';
+              buttonColor = 'bg-amber-50 text-amber-600 hover:bg-amber-100';
+            }
+
+            // CENÁRIO 3: Se tinha mais itens antes e agora tem poucos (parcial) — mensagem específica
+            // This is detected when totalItems is small (1-2) and the loan originally had more
+            const originalTotalFromLoans = userLoans.reduce((acc, l) => {
+              // We check if the original loan had more items by looking at loan_items count
+              return acc + (l.items?.length || 0);
+            }, 0);
             
-            const message = totalItems > 0 
-              ? `Olá ${beneficiary.name.split(' ')[0]}, notamos que você está com ${totalItems} ${itemLabel} da Monitoria (${itemsList}). Este é um aviso padrão para devolução até as 17:45 hoje. Obrigado!`
-              : `Olá ${beneficiary.name.split(' ')[0]}, lembramos que os equipamentos emprestados pela Monitoria precisam ser devolvidos até às 17:45 hoje. Obrigado!`;
+            if (!isBeforeCutoff && totalItems > 0 && totalItems <= 2) {
+              // Partial return scenario — be specific about remaining item(s)
+              const remaining = itemsList.join(' e ');
+              message = `Olá ${firstName}, aqui é a Monitoria SESI.\n\nVimos que você já devolveu a maioria dos equipamentos, obrigado! 👏\n\nPorém, ainda consta em nosso sistema o(s) seguinte(s) item(s) pendente(s): *${remaining}*.\n\nPoderia verificar e nos devolver assim que possível? O horário de devolução (17:45) já passou.\n\nAgradecemos muito! 🙏`;
+              buttonLabel = 'Pendente';
+              buttonColor = 'bg-rose-50 text-rose-600 hover:bg-rose-100';
+            }
         
-            const whatsappUrl = `https://wa.me/${beneficiary.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+            const whatsappUrl = `https://wa.me/55${beneficiary.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
 
             return (
             <motion.div 
@@ -165,6 +201,11 @@ export function Users() {
               <span className="text-[10px] font-black text-sesi-blue bg-sesi-blue/5 px-2 py-0.5 rounded-md uppercase tracking-wider">
                 {getTypeLabel(beneficiary.type)}
               </span>
+              {totalItems > 0 && (
+                <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
+                  {totalItems} {totalItems === 1 ? 'item' : 'itens'}
+                </span>
+              )}
             </div>
             <h3 className="font-bold text-slate-900 text-lg">{beneficiary.name}</h3>
             {beneficiary.department && (
@@ -183,10 +224,10 @@ export function Users() {
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1.5"
+                  className={`p-2 rounded-lg transition-all flex items-center gap-1.5 ${buttonColor}`}
                 >
                   <MessageCircle size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Aviso</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">{buttonLabel}</span>
                 </a>
               </div>
             )}
