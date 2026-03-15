@@ -129,7 +129,7 @@ export function Stock() {
                          (statusFilter === 'low' && p.quantity <= (p.minQuantity ?? 0)) ||
                          (statusFilter === 'normal' && p.quantity > (p.minQuantity ?? 0));
     return matchesSearch && matchesCategory && matchesStatus;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   const categories = Array.from(new Set(products.map(p => p.category)));
 
@@ -570,6 +570,41 @@ export function Stock() {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all">
                   Cancelar
                 </button>
+                {editingProduct && (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const printWindow = window.open('', '_blank');
+                      if (printWindow) {
+                        printWindow.document.write(`
+                          <html>
+                            <head><title>Etiqueta ${editingProduct.code}</title></head>
+                            <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
+                              <div style="border:2px solid black;padding:20px;text-align:center;">
+                                <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
+                                <div id="qrcode"></div>
+                                <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${editingProduct.name}</p>
+                                <p style="margin:5px 0 0 0;font-family:monospace;font-size:14px;">${editingProduct.code}</p>
+                              </div>
+                              <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+                              <script>
+                                var qr = qrcode(0, 'M');
+                                qr.addData('${editingProduct.code}');
+                                qr.make();
+                                document.getElementById('qrcode').innerHTML = qr.createImgTag(5);
+                                setTimeout(() => window.print(), 500);
+                              </script>
+                            </body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                      }
+                    }}
+                    className="flex-1 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-xl hover:bg-emerald-100 transition-all border border-emerald-200"
+                  >
+                    Etiqueta
+                  </button>
+                )}
                 <button type="submit" className="flex-1 py-3 bg-sesi-yellow text-slate-900 font-bold rounded-xl hover:bg-amber-400 transition-all shadow-lg shadow-sesi-yellow/20">
                   Salvar Produto
                 </button>

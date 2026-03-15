@@ -24,6 +24,7 @@ export interface Notebook {
   code: string;
   type: 'notebook' | 'mouse' | 'charger' | 'headphones';
   status: 'available' | 'loaned' | 'maintenance';
+  createdBy?: string;
 }
 
 export type BeneficiaryType = 'professor' | 'collaborator' | 'student' | 'location';
@@ -33,6 +34,7 @@ export interface Beneficiary {
   name: string;
   type: BeneficiaryType;
   department?: string; // Optional field for subject or department
+  phone?: string;
 }
 
 export interface Loan {

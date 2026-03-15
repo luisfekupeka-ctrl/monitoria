@@ -32,6 +32,7 @@ export function Notebooks() {
   const [statusFilter, setStatusFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRangeModalOpen, setIsRangeModalOpen] = useState(false);
+  const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null);
 
   const [activeTab, setActiveTab] = useState<'notebook' | 'mouse' | 'charger' | 'headphones'>('notebook');
   const { user } = useAuth();
@@ -43,7 +44,10 @@ export function Notebooks() {
 
   const fetchNotebooks = async () => {
     const { data } = await supabase.from('notebooks').select('*');
-    if (data) setNotebooks(data);
+    if (data) setNotebooks(data.map(n => ({
+      ...n,
+      createdBy: n.created_by
+    })));
   };
 
   const handleExportExcel = () => {
@@ -109,7 +113,8 @@ export function Notebooks() {
 
     const mappedItems = newItems.map(item => ({
       ...item,
-      id: Math.random().toString(36).substr(2, 9)
+      id: Math.random().toString(36).substr(2, 9),
+      created_by: user?.name || 'Monitor'
     }));
 
     await supabase.from('notebooks').insert(mappedItems);
@@ -118,13 +123,15 @@ export function Notebooks() {
     fetchNotebooks();
   };
 
-  const filteredNotebooks = notebooks.filter(n => {
-    const code = n.code || '';
-    const matchesSearch = code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !statusFilter || n.status === statusFilter;
-    const matchesTab = n.type === activeTab;
-    return matchesSearch && matchesStatus && matchesTab;
-  });
+  const filteredNotebooks = notebooks
+    .filter(n => {
+      const code = n.code || '';
+      const matchesSearch = code.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = !statusFilter || n.status === statusFilter;
+      const matchesTab = n.type === activeTab;
+      return matchesSearch && matchesStatus && matchesTab;
+    })
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -150,8 +157,8 @@ export function Notebooks() {
           {isAdmin && (
             <>
               <button 
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 bg-sesi-yellow text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-amber-400 transition-all"
+                onClick={() => { setEditingNotebook(null); setIsModalOpen(true); }}
+                className="flex items-center gap-2 bg-sesi-yellow text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-amber-400 transition-all font-sans"
               >
                 <Plus size={18} />
                 Novo Cadastro
@@ -291,6 +298,7 @@ export function Notebooks() {
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Código</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registrado por</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
             </tr>
           </thead>
@@ -311,6 +319,9 @@ export function Notebooks() {
                 <td className="px-6 py-4 text-sm text-slate-600 capitalize">{notebook.type}</td>
                 <td className="px-6 py-4">
                   {getStatusBadge(notebook.status)}
+                </td>
+                <td className="px-6 py-4 text-xs text-slate-500 italic">
+                  {notebook.createdBy || 'Sistema'}
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
@@ -349,7 +360,10 @@ export function Notebooks() {
                         >
                           <FileUp size={16} />
                         </button>
-                        <button className="p-2 text-slate-400 hover:text-sesi-blue transition-colors">
+                        <button 
+                          onClick={() => { setEditingNotebook(notebook); setIsModalOpen(true); }}
+                          className="p-2 text-slate-400 hover:text-sesi-blue transition-colors"
+                        >
                           <Edit2 size={16} />
                         </button>
                         <button 
@@ -398,7 +412,9 @@ export function Notebooks() {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-900">Novo Cadastro</h3>
+              <h3 className="text-xl font-bold text-slate-900">
+                {editingNotebook ? 'Editar Equipamento' : 'Novo Cadastro'}
+              </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X size={24} />
               </button>
@@ -408,21 +424,28 @@ export function Notebooks() {
               const formData = new FormData(e.currentTarget);
               const data = Object.fromEntries(formData.entries());
               
-              await supabase.from('notebooks').insert({
-                ...data,
-                status: 'available'
-              });
+              if (editingNotebook) {
+                await supabase.from('notebooks')
+                  .update({ ...data, status: editingNotebook.status })
+                  .eq('id', editingNotebook.id);
+              } else {
+                await supabase.from('notebooks').insert({
+                  ...data,
+                  status: 'available',
+                  created_by: user?.name || 'Monitor'
+                });
+              }
               
               setIsModalOpen(false);
               fetchNotebooks();
             }}>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Código</label>
-                <input name="code" required autoFocus placeholder="Ex: NB01" className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
+                <input name="code" defaultValue={editingNotebook?.code} required autoFocus placeholder="Ex: NB01" className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Tipo</label>
-                <select name="type" className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none">
+                <select name="type" defaultValue={editingNotebook?.type || activeTab} className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none">
                   <option value="notebook">Notebook</option>
                   <option value="mouse">Mouse</option>
                   <option value="charger">Carregador</option>
@@ -433,6 +456,41 @@ export function Notebooks() {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all">
                   Cancelar
                 </button>
+                {editingNotebook && (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const printWindow = window.open('', '_blank');
+                      if (printWindow) {
+                        printWindow.document.write(`
+                          <html>
+                            <head><title>Etiqueta ${editingNotebook.code}</title></head>
+                            <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
+                              <div style="border:2px solid black;padding:20px;text-align:center;">
+                                <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
+                                <div id="qrcode"></div>
+                                <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${editingNotebook.type.toUpperCase()}</p>
+                                <p style="margin:5px 0 0 0;font-family:monospace;font-size:14px;">${editingNotebook.code}</p>
+                              </div>
+                              <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+                              <script>
+                                var qr = qrcode(0, 'M');
+                                qr.addData('${editingNotebook.code}');
+                                qr.make();
+                                document.getElementById('qrcode').innerHTML = qr.createImgTag(5);
+                                setTimeout(() => window.print(), 500);
+                              </script>
+                            </body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                      }
+                    }}
+                    className="flex-1 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-xl hover:bg-emerald-100 transition-all border border-emerald-200"
+                  >
+                    Etiqueta
+                  </button>
+                )}
                 <button type="submit" className="flex-1 py-3 bg-sesi-yellow text-slate-900 font-bold rounded-xl hover:bg-amber-400 transition-all shadow-lg shadow-sesi-yellow/20">
                   Salvar
                 </button>

@@ -7,7 +7,8 @@ import {
   CheckCircle2,
   XCircle,
   Mail,
-  User as UserIcon
+  User as UserIcon,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from '../types';
@@ -157,18 +158,37 @@ export function AdminManagement() {
                   </div>
                   
                   {!isSuperAdmin && (
-                    <button
-                      onClick={() => handleToggleApproval(user)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-1.5",
-                        user.approved 
-                          ? "bg-rose-50 text-rose-600 hover:bg-rose-100" 
-                          : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-                      )}
-                    >
-                      {user.approved ? <XCircle size={14} /> : <CheckCircle2 size={14} />}
-                      {user.approved ? 'DESATIVAR' : 'APROVAR'}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleToggleApproval(user)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-1.5",
+                          user.approved 
+                            ? "bg-rose-50 text-rose-600 hover:bg-rose-100" 
+                            : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                        )}
+                      >
+                        {user.approved ? <XCircle size={14} /> : <CheckCircle2 size={14} />}
+                        {user.approved ? 'DESATIVAR' : 'APROVAR'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Deseja excluir permanentemente o acesso de ${user.name}?`)) {
+                            try {
+                              const { error } = await supabase.from('users').delete().eq('id', user.id);
+                              if (error) throw error;
+                              fetchUsers();
+                            } catch (err: any) {
+                              alert('Erro ao excluir usuário: ' + err.message);
+                            }
+                          }
+                        }}
+                        className="p-1.5 bg-slate-100 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                        title="Excluir Usuário"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </div>
 

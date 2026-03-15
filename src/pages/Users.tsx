@@ -9,7 +9,9 @@ import {
   BookOpen,
   MapPin,
   GraduationCap,
-  Briefcase
+  Briefcase,
+  Phone,
+  MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Beneficiary, BeneficiaryType } from '../types';
@@ -33,9 +35,9 @@ export function Users() {
     if (data) setBeneficiaries(data);
   };
 
-  const filteredBeneficiaries = beneficiaries.filter(b => 
-    b.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredBeneficiaries = beneficiaries
+    .filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const getTypeIcon = (type: BeneficiaryType) => {
     switch (type) {
@@ -152,6 +154,23 @@ export function Users() {
                 <span>{beneficiary.department}</span>
               </div>
             )}
+            {beneficiary.phone && (
+              <div className="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <Phone size={14} />
+                  <span>{beneficiary.phone}</span>
+                </div>
+                <a 
+                  href={`https://wa.me/${beneficiary.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${beneficiary.name.split(' ')[0]}, lembramos que os equipamentos emprestados pela Monitoria precisam ser devolvidos até às 17:45 hoje. Obrigado!`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1.5"
+                >
+                  <MessageCircle size={16} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Aviso</span>
+                </a>
+              </div>
+            )}
           </motion.div>
         ))}
         </AnimatePresence>
@@ -208,6 +227,10 @@ export function Users() {
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Departamento / Disciplina (Opcional)</label>
                 <input name="department" defaultValue={editingBeneficiary?.department} className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Telefone / WhatsApp (Opcional)</label>
+                <input name="phone" defaultValue={editingBeneficiary?.phone} placeholder="Ex: 11988887777" className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all">
