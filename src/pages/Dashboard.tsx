@@ -34,9 +34,10 @@ export function Dashboard() {
       }
 
       if (lRes.data) {
-        setLoans(lRes.data.map(l => ({
+        setLoans((lRes.data || []).map(l => ({
           ...l,
           beneficiaryId: l.beneficiary_id,
+          beneficiaryName: l.beneficiary_name || 'N/A',
           loanDate: l.loan_date,
           returnDate: l.return_date,
           operatorId: l.operator_id || l.beneficiary_id,

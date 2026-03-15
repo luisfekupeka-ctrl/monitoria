@@ -58,9 +58,10 @@ export function Loans() {
     if (pRes.data) setBeneficiaries(pRes.data);
     if (nRes.data) setNotebooks(nRes.data);
     if (lRes.data) {
-      const mappedLoans = lRes.data.map(l => ({
+      const mappedLoans = (lRes.data || []).map(l => ({
         ...l,
         beneficiaryId: l.beneficiary_id,
+        beneficiaryName: l.beneficiary_name || 'N/A',
         loanDate: l.loan_date,
         returnDate: l.return_date,
         operatorId: l.operator_id,
@@ -71,10 +72,12 @@ export function Loans() {
     }
   };
 
-  const filteredLoans = activeLoans.filter(loan => 
-    loan.beneficiaryName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    loan.items.some(item => item.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredLoans = (activeLoans || []).filter(loan => {
+    const beneficiaryName = loan.beneficiaryName || '';
+    const items = loan.items || [];
+    return beneficiaryName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           items.some(item => (item || '').toLowerCase().includes(searchTerm.toLowerCase()));
+  });
 
   const handleAddItem = (code: string) => {
     const cleanCode = code.trim().toUpperCase();
@@ -256,6 +259,7 @@ export function Loans() {
     const sbLoan = {
       id: loanId,
       beneficiary_id: selectedBeneficiaryId,
+      beneficiary_name: beneficiary?.name || 'N/A',
       operator_id: user?.id,
       operator_name: user?.name,
       status: 'active',
@@ -456,8 +460,8 @@ export function Loans() {
                     )}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
-                    {loan.items.map(itemCode => {
-                      const item = notebooks.find(n => n.code === itemCode);
+                    {(loan.items || []).map(itemCode => {
+                      const item = (notebooks || []).find(n => n.code === itemCode);
                       return (
                         <div key={itemCode} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 group/item hover:border-sesi-blue/30 transition-all">
                           <div className="flex items-center gap-1.5">
