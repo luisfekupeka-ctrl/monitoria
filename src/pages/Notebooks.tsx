@@ -24,6 +24,7 @@ import 'jspdf-autotable';
 import { Notebook } from '../types';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Notebooks() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
@@ -33,6 +34,8 @@ export function Notebooks() {
   const [isRangeModalOpen, setIsRangeModalOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'notebook' | 'mouse' | 'charger' | 'headphones'>('notebook');
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     fetchNotebooks();
@@ -132,20 +135,24 @@ export function Notebooks() {
           <p className="text-slate-500 mt-1">Controle individual de notebooks, mouses, carregadores e fones.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 bg-sesi-yellow text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-amber-400 transition-all"
-          >
-            <Plus size={18} />
-            Novo Cadastro
-          </button>
-          <button 
-            onClick={() => setIsRangeModalOpen(true)}
-            className="flex items-center gap-2 bg-sesi-blue/10 text-sesi-blue px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sesi-blue/20 transition-all"
-          >
-            <Hash size={18} />
-            Cadastrar Intervalo
-          </button>
+          {isAdmin && (
+            <>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 bg-sesi-yellow text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-amber-400 transition-all"
+              >
+                <Plus size={18} />
+                Novo Cadastro
+              </button>
+              <button 
+                onClick={() => setIsRangeModalOpen(true)}
+                className="flex items-center gap-2 bg-sesi-blue/10 text-sesi-blue px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sesi-blue/20 transition-all"
+              >
+                <Hash size={18} />
+                Cadastrar Intervalo
+              </button>
+            </>
+          )}
           <button 
             onClick={handleExportExcel}
             className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
@@ -153,11 +160,13 @@ export function Notebooks() {
             <FileDown size={18} />
             Exportar Excel
           </button>
-          <label className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all cursor-pointer">
-            <FileUp size={18} />
-            Importar Excel
-            <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
-          </label>
+          {isAdmin && (
+            <label className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all cursor-pointer">
+              <FileUp size={18} />
+              Importar Excel
+              <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
+            </label>
+          )}
         </div>
       </div>
 
@@ -283,32 +292,36 @@ export function Notebooks() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <button className="p-2 text-slate-400 hover:text-sesi-blue transition-colors">
-                      <Edit2 size={16} />
-                    </button>
-                    <button 
-                      onClick={async () => {
-                        if (confirm(`Deseja excluir o equipamento ${notebook.code}?`)) {
-                          try {
-                            const { error } = await supabase.from('notebooks').delete().eq('id', notebook.id);
-                            if (error) {
-                              if (error.code === '23503') {
-                                alert('Não é possível excluir este equipamento pois ele está vinculado a um histórico de empréstimo.');
-                              } else {
-                                alert('Erro ao excluir: ' + error.message);
+                    {isAdmin && (
+                      <>
+                        <button className="p-2 text-slate-400 hover:text-sesi-blue transition-colors">
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            if (confirm(`Deseja excluir o equipamento ${notebook.code}?`)) {
+                              try {
+                                const { error } = await supabase.from('notebooks').delete().eq('id', notebook.id);
+                                if (error) {
+                                  if (error.code === '23503') {
+                                    alert('Não é possível excluir este equipamento pois ele está vinculado a um histórico de empréstimo.');
+                                  } else {
+                                    alert('Erro ao excluir: ' + error.message);
+                                  }
+                                  return;
+                                }
+                                fetchNotebooks();
+                              } catch (err) {
+                                alert('Erro inesperado ao excluir.');
                               }
-                              return;
                             }
-                            fetchNotebooks();
-                          } catch (err) {
-                            alert('Erro inesperado ao excluir.');
-                          }
-                        }
-                      }}
-                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                          }}
+                          className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
                 </motion.tr>

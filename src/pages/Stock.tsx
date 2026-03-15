@@ -29,6 +29,7 @@ export function Stock() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const isAdmin = user?.role === 'admin';
   const [movementType, setMovementType] = useState<'in' | 'out'>('in');
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState('');
@@ -127,18 +128,22 @@ export function Stock() {
           <p className="text-slate-500 mt-1">Gerencie a disponibilidade de itens e níveis críticos em tempo real.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button 
-            onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
-            className="flex items-center gap-2 bg-sesi-yellow text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-amber-400 transition-all"
-          >
-            <Plus size={18} />
-            Adicionar produto
-          </button>
-          <label className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all cursor-pointer">
-            <FileUp size={18} />
-            Importar Excel
-            <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
-          </label>
+          {isAdmin && (
+            <>
+              <button 
+                onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
+                className="flex items-center gap-2 bg-sesi-yellow text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-amber-400 transition-all"
+              >
+                <Plus size={18} />
+                Adicionar produto
+              </button>
+              <label className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all cursor-pointer">
+                <FileUp size={18} />
+                Importar Excel
+                <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
+              </label>
+            </>
+          )}
           <button 
             onClick={handleExportExcel}
             className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
@@ -237,7 +242,7 @@ export function Stock() {
                   <div className="flex items-center justify-end gap-2">
                     <button 
                       onClick={() => { 
-                        setEditingProduct(product); 
+                        setEditingProduct(product);
                         setMovementType('in');
                         setIsMovementModalOpen(true); 
                       }}
@@ -257,35 +262,41 @@ export function Stock() {
                     >
                       <X size={16} />
                     </button>
-                    <button 
-                      onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
-                      className="p-2 text-slate-400 hover:text-sesi-blue transition-colors"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button 
-                      onClick={async () => {
-                        if (confirm(`Deseja excluir o produto ${product.name}?`)) {
-                          try {
-                            const { error } = await supabase.from('products').delete().eq('id', product.id);
-                            if (error) {
-                              if (error.code === '23503') {
-                                alert('Não é possível excluir este produto pois existem movimentações vinculadas a ele.');
-                              } else {
-                                alert('Erro ao excluir: ' + error.message);
+                    {isAdmin && (
+                      <div className="flex gap-1 border-l border-slate-100 pl-2 ml-1">
+                        <button 
+                          onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
+                          className="p-2 text-slate-400 hover:text-sesi-blue transition-colors"
+                          title="Editar Produto"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            if (confirm(`Deseja excluir o produto ${product.name}?`)) {
+                              try {
+                                const { error } = await supabase.from('products').delete().eq('id', product.id);
+                                if (error) {
+                                  if (error.code === '23503') {
+                                    alert('Não é possível excluir este produto pois existem movimentações vinculadas a ele.');
+                                  } else {
+                                    alert('Erro ao excluir: ' + error.message);
+                                  }
+                                  return;
+                                }
+                                fetchProducts();
+                              } catch (err) {
+                                alert('Erro inesperado ao excluir.');
                               }
-                              return;
                             }
-                            fetchProducts();
-                          } catch (err) {
-                            alert('Erro inesperado ao excluir.');
-                          }
-                        }
-                      }}
-                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                          }}
+                          className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                          title="Excluir Produto"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </td>
                 </motion.tr>

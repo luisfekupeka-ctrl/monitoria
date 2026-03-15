@@ -14,12 +14,15 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Beneficiary, BeneficiaryType } from '../types';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Users() {
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBeneficiary, setEditingBeneficiary] = useState<Beneficiary | null>(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     fetchBeneficiaries();
@@ -65,13 +68,15 @@ export function Users() {
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">Usuários e Locais</h2>
           <p className="text-slate-500 mt-1">Cadastro de quem ou onde os materiais são direcionados.</p>
         </div>
-        <button 
-          onClick={() => { setEditingBeneficiary(null); setIsModalOpen(true); }}
-          className="flex items-center gap-2 bg-sesi-yellow text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-amber-400 transition-all"
-        >
-          <Plus size={18} />
-          Novo Cadastro
-        </button>
+        {isAdmin && (
+          <button 
+            onClick={() => { setEditingBeneficiary(null); setIsModalOpen(true); }}
+            className="flex items-center gap-2 bg-sesi-yellow text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-amber-400 transition-all font-sans"
+          >
+            <Plus size={18} />
+            Novo Cadastro
+          </button>
+        )}
       </div>
 
       <div className="relative max-w-md">
@@ -101,37 +106,39 @@ export function Users() {
               <div className="size-12 rounded-2xl bg-sesi-blue/10 flex items-center justify-center text-sesi-blue">
                 {getTypeIcon(beneficiary.type)}
               </div>
-              <div className="flex gap-1">
-                <button 
-                  onClick={() => { setEditingBeneficiary(beneficiary); setIsModalOpen(true); }}
-                  className="p-2 text-slate-400 hover:text-sesi-blue transition-colors"
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button 
-                  onClick={async () => {
-                    if (confirm('Deseja excluir este cadastro?')) {
-                      try {
-                        const { error } = await supabase.from('professors').delete().eq('id', beneficiary.id);
-                        if (error) {
-                          if (error.code === '23503') {
-                            alert('Não é possível excluir este cadastro pois existem empréstimos vinculados a ele.');
-                          } else {
-                            alert('Erro ao excluir: ' + error.message);
+              {isAdmin && (
+                <div className="flex gap-1">
+                  <button 
+                    onClick={() => { setEditingBeneficiary(beneficiary); setIsModalOpen(true); }}
+                    className="p-2 text-slate-400 hover:text-sesi-blue transition-colors"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      if (confirm('Deseja excluir este cadastro?')) {
+                        try {
+                          const { error } = await supabase.from('professors').delete().eq('id', beneficiary.id);
+                          if (error) {
+                            if (error.code === '23503') {
+                              alert('Não é possível excluir este cadastro pois existem empréstimos vinculados a ele.');
+                            } else {
+                              alert('Erro ao excluir: ' + error.message);
+                            }
+                            return;
                           }
-                          return;
+                          fetchBeneficiaries();
+                        } catch (err) {
+                          alert('Erro inesperado ao excluir.');
                         }
-                        fetchBeneficiaries();
-                      } catch (err) {
-                        alert('Erro inesperado ao excluir.');
                       }
-                    }
-                  }}
-                  className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+                    }}
+                    className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[10px] font-black text-sesi-blue bg-sesi-blue/5 px-2 py-0.5 rounded-md uppercase tracking-wider">

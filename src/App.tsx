@@ -30,6 +30,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const { user } = useAuth();
   return (
     <AuthProvider>
       <BrowserRouter>
@@ -42,7 +43,11 @@ export default function App() {
           <Route path="/emprestimos" element={<PrivateRoute><Loans /></PrivateRoute>} />
           <Route path="/usuarios" element={<PrivateRoute><Users /></PrivateRoute>} />
           <Route path="/relatorios" element={<PrivateRoute><Reports /></PrivateRoute>} />
-          <Route path="/gestao-acesso" element={<PrivateRoute><AdminManagement /></PrivateRoute>} />
+          <Route path="/gestao-acesso" element={
+            <PrivateRoute>
+              {user?.role === 'admin' ? <AdminManagement /> : <Navigate to="/" />}
+            </PrivateRoute>
+          } />
           
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
