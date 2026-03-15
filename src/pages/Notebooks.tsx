@@ -450,8 +450,10 @@ export function Notebooks() {
                     .eq('id', editingNotebook.id);
                   if (error) throw error;
                 } else {
+                  const newId = Math.random().toString(36).substr(2, 9);
                   let { error } = await supabase.from('notebooks').insert({
                     ...data,
+                    id: newId,
                     status: 'available',
                     created_by: user?.name || 'Monitor'
                   });
@@ -460,6 +462,7 @@ export function Notebooks() {
                     console.warn('Fallback: Coluna created_by ausente. Inserindo sem ela.');
                     const { error: fallbackError } = await supabase.from('notebooks').insert({
                       ...data,
+                      id: newId,
                       status: 'available'
                     });
                     if (fallbackError) throw fallbackError;
