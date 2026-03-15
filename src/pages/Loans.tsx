@@ -283,7 +283,7 @@ export function Loans() {
 
       if (loanError) {
         console.error("Erro no supabase (loans):", loanError);
-        setError('Erro ao salvar empréstimo: ' + loanError.message);
+        alert('Erro do Banco de Dados: ' + loanError.message);
         return;
       }
 
@@ -297,8 +297,7 @@ export function Loans() {
         
         if (itemsError) {
            console.error("Erro no supabase (loan_items):", itemsError);
-           // Not doing full rollback, but warning the user
-           setError('Aviso: empréstimo criado, mas falha ao salvar itens: ' + itemsError.message);
+           alert('Aviso: empréstimo criado, mas falha ao salvar os itens: ' + itemsError.message);
         }
 
         // Update notebooks status
