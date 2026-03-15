@@ -1,0 +1,330 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "username": "admin",
+      "password": "admin",
+      "role": "admin",
+      "name": "Admin SESI"
+    },
+    {
+      "id": "2",
+      "username": "monitor",
+      "password": "123",
+      "role": "operator",
+      "name": "Monitor SESI"
+    }
+  ],
+  "products": [
+    {
+      "name": "lapis",
+      "category": "insumos",
+      "code": "1234",
+      "quantity": 11,
+      "minQuantity": 3,
+      "unit": "un",
+      "id": "1773600354925"
+    }
+  ],
+  "notebooks": [
+    {
+      "code": "NB01",
+      "type": "notebook",
+      "status": "loaned",
+      "id": "yap95pmh0"
+    },
+    {
+      "code": "NB02",
+      "type": "notebook",
+      "status": "loaned",
+      "id": "t71pia5vl"
+    },
+    {
+      "code": "NB03",
+      "type": "notebook",
+      "status": "loaned",
+      "id": "3sa91hoz0"
+    },
+    {
+      "code": "NB04",
+      "type": "notebook",
+      "status": "loaned",
+      "id": "2e0q3br4j"
+    },
+    {
+      "code": "NB05",
+      "type": "notebook",
+      "status": "loaned",
+      "id": "mryca8c89"
+    },
+    {
+      "code": "NB06",
+      "type": "notebook",
+      "status": "loaned",
+      "id": "lmjrnqbou"
+    },
+    {
+      "code": "NB07",
+      "type": "notebook",
+      "status": "available",
+      "id": "37lc02475"
+    },
+    {
+      "code": "NB08",
+      "type": "notebook",
+      "status": "available",
+      "id": "hn5ztw4vy"
+    },
+    {
+      "code": "NB09",
+      "type": "notebook",
+      "status": "available",
+      "id": "mvtb5dybo"
+    },
+    {
+      "code": "NB10",
+      "type": "notebook",
+      "status": "available",
+      "id": "1z7qv03sf"
+    },
+    {
+      "code": "NB11",
+      "type": "notebook",
+      "status": "available",
+      "id": "n8mxcd9g3"
+    },
+    {
+      "code": "NB12",
+      "type": "notebook",
+      "status": "available",
+      "id": "3ssi38t3y"
+    },
+    {
+      "code": "NB13",
+      "type": "notebook",
+      "status": "available",
+      "id": "lgya9yrxi"
+    },
+    {
+      "code": "NB14",
+      "type": "notebook",
+      "status": "available",
+      "id": "v9b6kl400"
+    },
+    {
+      "code": "NB15",
+      "type": "notebook",
+      "status": "available",
+      "id": "h26804qt9"
+    },
+    {
+      "code": "NB16",
+      "type": "notebook",
+      "status": "available",
+      "id": "z7nj1dlso"
+    },
+    {
+      "code": "NB17",
+      "type": "notebook",
+      "status": "available",
+      "id": "g63dg9jwe"
+    },
+    {
+      "code": "NB18",
+      "type": "notebook",
+      "status": "available",
+      "id": "ryotyusox"
+    },
+    {
+      "code": "NB19",
+      "type": "notebook",
+      "status": "available",
+      "id": "d8o8y7dlk"
+    },
+    {
+      "code": "NB20",
+      "type": "notebook",
+      "status": "available",
+      "id": "cu4ontiim"
+    },
+    {
+      "code": "NB21",
+      "type": "notebook",
+      "status": "available",
+      "id": "xgi7ubq2i"
+    },
+    {
+      "code": "NB22",
+      "type": "notebook",
+      "status": "available",
+      "id": "f5xye682f"
+    },
+    {
+      "code": "NB23",
+      "type": "notebook",
+      "status": "available",
+      "id": "cff3s2e6g"
+    },
+    {
+      "code": "NB24",
+      "type": "notebook",
+      "status": "available",
+      "id": "jxupgdj80"
+    },
+    {
+      "code": "NB25",
+      "type": "notebook",
+      "status": "available",
+      "id": "dg45cpaik"
+    },
+    {
+      "code": "C01",
+      "type": "charger",
+      "status": "available",
+      "id": "c01id"
+    },
+    {
+      "code": "C02",
+      "type": "charger",
+      "status": "available",
+      "id": "c02id"
+    },
+    {
+      "code": "C03",
+      "type": "charger",
+      "status": "available",
+      "id": "c03id"
+    },
+    {
+      "code": "C04",
+      "type": "charger",
+      "status": "available",
+      "id": "c04id"
+    },
+    {
+      "code": "C05",
+      "type": "charger",
+      "status": "available",
+      "id": "c05id"
+    },
+    {
+      "code": "F01",
+      "type": "headphones",
+      "status": "available",
+      "id": "f01id"
+    },
+    {
+      "code": "F02",
+      "type": "headphones",
+      "status": "available",
+      "id": "f02id"
+    },
+    {
+      "code": "F03",
+      "type": "headphones",
+      "status": "available",
+      "id": "f03id"
+    },
+    {
+      "code": "F04",
+      "type": "headphones",
+      "status": "available",
+      "id": "f04id"
+    },
+    {
+      "code": "F05",
+      "type": "headphones",
+      "status": "available",
+      "id": "f05id"
+    },
+    {
+      "code": "M01",
+      "type": "mouse",
+      "status": "available",
+      "id": "m01id"
+    },
+    {
+      "code": "M02",
+      "type": "mouse",
+      "status": "available",
+      "id": "m02id"
+    }
+  ],
+  "professors": [
+    {
+      "name": "fabio",
+      "subject": "matematica",
+      "code": "1234",
+      "type": "professor",
+      "id": "1773600464248"
+    },
+    {
+      "name": "João Silva",
+      "type": "collaborator",
+      "department": "Administrativo",
+      "id": "b1"
+    },
+    {
+      "name": "Maria Souza",
+      "type": "student",
+      "id": "b2"
+    },
+    {
+      "name": "Sala dos Professores",
+      "type": "location",
+      "id": "b3"
+    }
+  ],
+  "loans": [
+    {
+      "beneficiaryId": "1773600464248",
+      "beneficiaryName": "fabio",
+      "items": [
+        "NB01"
+      ],
+      "loanDate": "2026-03-15T18:44:08.233Z",
+      "operatorId": "1",
+      "operatorName": "Admin SESI",
+      "status": "active",
+      "id": "1773600569755"
+    },
+    {
+      "beneficiaryId": "1773600464248",
+      "beneficiaryName": "fabio",
+      "items": [
+        "NB02",
+        "NB03",
+        "NB04",
+        "NB05",
+        "NB06"
+      ],
+      "loanDate": "2026-03-15T18:51:15.726Z",
+      "operatorId": "1",
+      "operatorName": "Admin SESI",
+      "status": "active",
+      "id": "1773600997262"
+    },
+    {
+      "professorId": "1773600464248",
+      "professorName": "fabio",
+      "items": [],
+      "loanDate": "2026-03-15T19:02:30.841Z",
+      "operatorId": "1",
+      "operatorName": "Admin SESI",
+      "status": "returned",
+      "id": "1773601672370",
+      "returnDate": "2026-03-15T19:02:40.621Z"
+    }
+  ],
+  "stockMovements": [
+    {
+      "productId": "1773600354925",
+      "productName": "lapis",
+      "type": "out",
+      "quantity": 1,
+      "date": "2026-03-15T18:56:19.073Z",
+      "operatorName": "Monitor",
+      "id": "1773601300589"
+    }
+  ]
+}

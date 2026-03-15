@@ -1,0 +1,5 @@
+{
+  "name": "Monitoria SESI - Gestão de Ativos",
+  "description": "Sistema minimalista para controle de estoque e empréstimo de notebooks do colégio SESI Internacional.",
+  "requestFramePermissions": []
+}
