@@ -312,122 +312,132 @@ export function Loans() {
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-7xl mx-auto space-y-8"
+      className="max-w-7xl mx-auto space-y-12"
     >
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
         <div>
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">Monitoria SESI</h1>
-          <p className="text-slate-500 font-medium mt-1">Gestão de Empréstimos e Devoluções de Ativos.</p>
+          <h1 className="text-5xl font-black tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
+            Monitoria SESI
+          </h1>
+          <p className="text-slate-500 font-medium mt-2 flex items-center gap-2">
+            <span className="size-2 bg-emerald-500 rounded-full animate-pulse" />
+            Sistema Ativo • Gestão de Empréstimos e Devoluções
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <button 
             onClick={() => setIsLoanModalOpen(true)}
-            className="flex items-center gap-2 bg-sesi-yellow text-slate-900 px-8 py-4 rounded-2xl font-black text-sm shadow-lg shadow-sesi-yellow/20 hover:bg-amber-400 hover:-translate-y-0.5 transition-all active:translate-y-0"
+            className="group relative flex items-center gap-3 bg-slate-900 text-white px-10 py-5 rounded-[2rem] font-black text-sm shadow-2xl shadow-slate-900/20 hover:scale-105 transition-all overflow-hidden"
           >
-            <Plus size={20} />
-            NOVO EMPRÉSTIMO
+            <div className="absolute inset-0 bg-gradient-to-tr from-sesi-blue/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Plus size={22} className="text-sesi-yellow" />
+            <span className="relative">NOVO EMPRÉSTIMO</span>
           </button>
         </div>
       </div>
 
-      {/* Quick Stats & Search/Return */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-6 relative">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input 
-            type="text" 
-            placeholder="Buscar por pessoa, local ou código..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-14 pr-6 py-5 bg-white border border-slate-200 rounded-[2rem] text-sm font-medium focus:ring-4 focus:ring-sesi-blue/10 shadow-sm transition-all outline-none"
-          />
-        </div>
-        
-        <div className="lg:col-span-4 relative">
-          <Scan className="absolute left-5 top-1/2 -translate-y-1/2 text-sesi-blue" size={20} />
-          <input 
-            type="text"
-            placeholder="Devolução Rápida (Scan)..."
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleReturnByCode((e.target as HTMLInputElement).value);
-                (e.target as HTMLInputElement).value = '';
-              }
-            }}
-            className="w-full pl-14 pr-6 py-5 bg-sesi-blue/5 border border-sesi-blue/20 rounded-[2rem] text-sm font-bold text-sesi-blue placeholder:text-sesi-blue/40 focus:ring-4 focus:ring-sesi-blue/10 shadow-sm transition-all outline-none"
-          />
+      {/* Grid of Dashboard Info */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+        <div className="lg:col-span-4 bg-white p-8 rounded-[3rem] border border-slate-200 shadow-xl shadow-slate-200/50 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-8">
+            <div className="size-16 rounded-[1.5rem] bg-emerald-50 text-emerald-500 flex items-center justify-center">
+              <History size={32} />
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Empréstimos Ativos</p>
+              <h2 className="text-4xl font-black text-slate-900 leading-tight">{activeLoans.length}</h2>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 font-bold uppercase tracking-widest">Capacidade e Fluxo</span>
+              <span className="font-black text-sesi-blue">{(activeLoans.length / 50 * 100).toFixed(0)}%</span>
+            </div>
+            <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${(activeLoans.length / 50 * 100)}%` }}
+                className="h-full bg-gradient-to-r from-sesi-blue to-blue-400 rounded-full"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="lg:col-span-2 bg-sesi-blue text-white p-5 rounded-[2rem] flex flex-col justify-center gap-3 shadow-lg shadow-sesi-blue/20">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Ativos</p>
-            <p className="text-xl font-black leading-none">{activeLoans.length}</p>
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="relative group">
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-sesi-blue transition-colors" size={24} />
+            <input 
+              type="text" 
+              placeholder="Pesquisar registros..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full h-full pl-16 pr-8 py-8 bg-white border border-slate-200 rounded-[3rem] text-lg font-bold focus:ring-[12px] focus:ring-sesi-blue/5 focus:border-sesi-blue shadow-xl shadow-slate-200/50 transition-all outline-none"
+            />
           </div>
-          <div className="h-px w-full bg-white/10" />
-          <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Disponíveis</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex items-center gap-1.5">
-                <Laptop size={10} className="text-sesi-yellow" />
-                <span className="text-xs font-black">{availableItems.filter(i => i.type === 'notebook').length}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Zap size={10} className="text-sesi-yellow" />
-                <span className="text-xs font-black">{availableItems.filter(i => i.type === 'charger').length}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Headphones size={10} className="text-sesi-yellow" />
-                <span className="text-xs font-black">{availableItems.filter(i => i.type === 'headphones').length}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Mouse size={10} className="text-sesi-yellow" />
-                <span className="text-xs font-black">{availableItems.filter(i => i.type === 'mouse').length}</span>
-              </div>
-            </div>
+          
+          <div className="relative group">
+            <Scan className="absolute left-6 top-1/2 -translate-y-1/2 text-sesi-blue" size={24} />
+            <input 
+              type="text"
+              placeholder="Devolução via Scanner..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleReturnByCode((e.target as HTMLInputElement).value);
+                  (e.target as HTMLInputElement).value = '';
+                }
+              }}
+              className="w-full h-full pl-16 pr-8 py-8 bg-sesi-blue text-white placeholder:text-white/40 border-none rounded-[3rem] text-lg font-black shadow-xl shadow-sesi-blue/30 focus:ring-[12px] focus:ring-sesi-blue/10 transition-all outline-none"
+            />
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-600 p-5 rounded-2xl flex items-center gap-3 border border-red-100 animate-in fade-in slide-in-from-top-2">
-          <AlertCircle size={20} />
-          <span className="text-sm font-bold">{error}</span>
-          <button onClick={() => setError('')} className="ml-auto hover:bg-red-100 p-1 rounded-lg transition-colors"><X size={18} /></button>
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-rose-50 text-rose-600 p-6 rounded-[2rem] flex items-center gap-4 border border-rose-100 shadow-lg shadow-rose-500/10"
+        >
+          <AlertCircle size={24} />
+          <span className="text-base font-black">{error}</span>
+          <button onClick={() => setError('')} className="ml-auto hover:bg-rose-100 p-2 rounded-xl transition-colors"><X size={20} /></button>
+        </motion.div>
       )}
 
       {success && (
-        <div className="bg-emerald-50 text-emerald-600 p-5 rounded-2xl flex items-center gap-3 border border-emerald-100 animate-in fade-in slide-in-from-top-2">
-          <CheckCircle2 size={20} />
-          <span className="text-sm font-bold">{success}</span>
-          <button onClick={() => setSuccess('')} className="ml-auto hover:bg-emerald-100 p-1 rounded-lg transition-colors"><X size={18} /></button>
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-emerald-50 text-emerald-600 p-6 rounded-[2rem] flex items-center gap-4 border border-emerald-100 shadow-lg shadow-emerald-500/10"
+        >
+          <CheckCircle2 size={24} />
+          <span className="text-base font-black">{success}</span>
+          <button onClick={() => setSuccess('')} className="ml-auto hover:bg-emerald-100 p-2 rounded-xl transition-colors"><X size={20} /></button>
+        </motion.div>
       )}
 
-      {/* Active Loans Grid */}
-      <div className="space-y-6">
+      {/* Main Grid Section */}
+      <div className="space-y-8 pt-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <ArrowDownCircle className="text-sesi-blue" size={24} />
-            Empréstimos Ativos
-          </h2>
-          <div className="flex items-center gap-2">
-            <div className="flex -space-x-2">
-              {beneficiaries.slice(0, 5).map((p, i) => (
-                <div key={i} className="size-8 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500">
-                  {p.name[0]}
-                </div>
-              ))}
+          <div className="flex items-center gap-4">
+            <div className="size-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg">
+              <ArrowDownCircle size={20} />
             </div>
-            <span className="text-xs font-bold text-slate-400">Monitorando {activeLoans.length} registros</span>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Fluxo de Saída</h2>
+          </div>
+          <div className="flex items-center gap-3">
+             <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
+               {activeLoans.length} Registros no momento
+             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
           <AnimatePresence mode="popLayout">
             {filteredLoans.map((loan) => {
               const loanDate = new Date(loan.loanDate);
-              const hoursOut = Math.floor((new Date().getTime() - loanDate.getTime()) / (1000 * 60 * 60));
+              const minutesOut = Math.floor((new Date().getTime() - loanDate.getTime()) / (1000 * 60));
+              const hoursOut = Math.floor(minutesOut / 60);
               const isOld = hoursOut >= 4;
 
               return (
@@ -437,92 +447,102 @@ export function Loans() {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:shadow-xl hover:border-sesi-blue/20 transition-all group animate-in fade-in zoom-in-95"
+                  className="relative bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-slate-200/60 overflow-hidden flex flex-col hover:border-sesi-blue/40 transition-all group"
                 >
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
-                  <div className="flex items-center gap-4">
-                    <div className="size-14 rounded-2xl bg-sesi-blue flex items-center justify-center text-white shadow-lg shadow-sesi-blue/20 group-hover:scale-110 transition-transform">
-                      <User size={28} />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-slate-900 text-lg leading-tight">{loan.beneficiaryName}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {formatDate(loan.loanDate)} às {new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                  <div className="p-8 pb-6 flex items-start justify-between">
+                    <div className="flex items-center gap-5">
+                      <div className="relative">
+                        <div className="size-16 rounded-[2rem] bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-sesi-blue group-hover:text-white group-hover:border-sesi-blue transition-all duration-500 shadow-inner">
+                          <User size={32} />
+                        </div>
+                        {isOld && (
+                          <div className="absolute -top-1 -right-1 size-5 bg-rose-500 rounded-full border-4 border-white animate-pulse shadow-md shadow-rose-500/40" />
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-black text-slate-900 text-xl tracking-tight leading-tight mb-1">{loan.beneficiaryName}</h4>
+                        <div className="flex items-center gap-2">
+                           <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1">
+                             <History size={10} />
+                             {formatDate(loan.loanDate)} às {new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                           </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="p-6 flex-1 bg-white">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Laptop size={16} className="text-sesi-yellow" />
-                      <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Notebooks ({loan.items.length})</span>
+                  <div className="px-8 pb-8 flex-1">
+                    <div className="mb-6 flex items-center justify-between">
+                      <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 rounded-xl">
+                        <Laptop size={14} className="text-sesi-yellow" />
+                        <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">{loan.items.length} Itens out</span>
+                      </div>
+                      <div className={cn(
+                        "flex items-center gap-2 px-3 py-1 rounded-xl",
+                        isOld ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
+                      )}>
+                        <span className="text-[10px] font-black uppercase tracking-widest">
+                          {isOld ? `${hoursOut}H ATRASADO` : `${minutesOut}min decorridos`}
+                        </span>
+                      </div>
                     </div>
-                    {isOld && (
-                      <span className="flex items-center gap-1 text-[10px] font-black text-orange-500 bg-orange-50 px-2 py-1 rounded-lg animate-pulse">
-                        <AlertCircle size={10} />
-                        {hoursOut}H ATRASADO
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(loan.items || []).map(itemCode => {
-                      const item = (notebooks || []).find(n => n.code === itemCode);
-                      return (
-                        <div key={itemCode} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 group/item hover:border-sesi-blue/30 transition-all">
-                          <div className="flex items-center gap-1.5">
-                            {item?.type === 'notebook' && <Laptop size={10} className="text-sesi-yellow" />}
-                            {item?.type === 'charger' && <Zap size={10} className="text-sesi-blue" />}
-                            {item?.type === 'headphones' && <Headphones size={10} className="text-sesi-blue" />}
-                            {item?.type === 'mouse' && <Mouse size={10} className="text-sesi-blue" />}
-                            <span className="text-[10px] font-black font-mono text-slate-700">{itemCode}</span>
-                          </div>
-                          <button 
-                            onClick={() => handleReturnByCode(itemCode)}
-                            className="text-slate-300 hover:text-red-500 transition-colors"
-                            title="Devolver este item"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
 
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Operador</span>
-                    <span className="text-xs font-bold text-slate-700">{loan.operatorName}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {(loan.items || []).map(itemCode => {
+                        const item = (notebooks || []).find(n => n.code === itemCode);
+                        return (
+                          <div key={itemCode} className="group/item flex items-center gap-2 bg-slate-50 hover:bg-slate-100 px-4 py-2.5 rounded-[1.25rem] border border-slate-100 transition-all">
+                            {item?.type === 'notebook' && <Laptop size={14} className="text-sesi-blue" />}
+                            {item?.type === 'charger' && <Zap size={14} className="text-amber-500" />}
+                            {item?.type === 'headphones' && <Headphones size={14} className="text-rose-500" />}
+                            {item?.type === 'mouse' && <Mouse size={14} className="text-emerald-500" />}
+                            <span className="text-xs font-black font-mono text-slate-700">{itemCode}</span>
+                            <button 
+                              onClick={() => handleReturnByCode(itemCode)}
+                              className="ml-1 text-slate-300 hover:text-rose-500 transition-colors"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => handleReturnAll(loan)}
-                    className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-                  >
-                    <Check size={16} />
-                    DEVOLVER TUDO
-                  </button>
-                </div>
-              </motion.div>
-            );
-          })}
+
+                  <div className="p-4 px-8 bg-slate-50/80 backdrop-blur-sm border-t border-slate-100 flex items-center justify-between mt-auto">
+                    <div className="flex items-center gap-3">
+                       <div className="size-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[10px] font-black text-slate-400">
+                         {loan.operatorName?.[0] || 'A'}
+                       </div>
+                       <div className="flex flex-col">
+                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Operador</span>
+                         <span className="text-[10px] font-bold text-slate-700 leading-none">{loan.operatorName}</span>
+                       </div>
+                    </div>
+                    <button 
+                      onClick={() => handleReturnAll(loan)}
+                      className="px-6 py-3.5 bg-slate-900 text-white rounded-[1.5rem] text-[10px] font-black hover:bg-sesi-blue transition-all shadow-xl shadow-slate-900/10 flex items-center gap-2 group-hover:scale-105 active:scale-95"
+                    >
+                      <CheckCircle2 size={16} className="text-emerald-400" />
+                      DEVOLVER TUDO
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
           {activeLoans.length === 0 && (
-            <div className="col-span-full py-32 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
-              <div className="size-24 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-                <History size={48} className="opacity-20" />
+            <div className="col-span-full py-40 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[4rem] border-2 border-dashed border-slate-100 shadow-inner">
+              <div className="size-32 bg-slate-50 rounded-[3rem] flex items-center justify-center mb-8 shadow-xl">
+                <History size={64} className="opacity-10" />
               </div>
-              <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">Nenhum empréstimo ativo</h3>
-              <p className="text-sm text-slate-400 mt-2">Tudo em ordem no estoque de notebooks.</p>
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Estoque Monitorado</h3>
+              <p className="text-sm text-slate-400 mt-2 font-medium">Todos os equipamentos estão disponíveis no momento.</p>
               <button 
                 onClick={() => setIsLoanModalOpen(true)}
-                className="mt-6 text-sesi-blue font-black text-sm hover:underline flex items-center gap-2"
+                className="mt-8 bg-sesi-blue text-white px-8 py-4 rounded-2xl font-black text-sm hover:scale-105 transition-all shadow-xl shadow-sesi-blue/20"
               >
-                <Plus size={18} />
-                Iniciar novo empréstimo
+                Novo Empréstimo
               </button>
             </div>
           )}

@@ -47,10 +47,22 @@ export function Notebooks() {
   };
 
   const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(notebooks);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Notebooks");
-    XLSX.writeFile(wb, "notebooks_sesi.xlsx");
+    try {
+      const exportData = notebooks.map(n => ({
+        'Código': n.code,
+        'Tipo': n.type,
+        'Status': n.status === 'available' ? 'Livre' : n.status === 'loaned' ? 'Em uso' : 'Manutenção'
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Equipamentos");
+      
+      const date = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(wb, `equipamentos_sesi_${date}.xlsx`);
+    } catch (err) {
+      alert('Erro ao exportar Excel.');
+    }
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,6 +258,16 @@ export function Notebooks() {
             placeholder="Buscar por código (ex: NB01)..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchTerm) {
+                // For notebooks, we just filter, but BIP can confirm visibility
+                const match = notebooks.find(n => n.code.toLowerCase() === searchTerm.toLowerCase());
+                if (match) {
+                  setActiveTab(match.type);
+                  setSearchTerm(match.code);
+                }
+              }
+            }}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-sesi-blue/20 text-sm"
           />
         </div>
@@ -294,6 +316,39 @@ export function Notebooks() {
                   <div className="flex items-center justify-end gap-2">
                     {isAdmin && (
                       <>
+                        <button 
+                          onClick={() => {
+                            const printWindow = window.open('', '_blank');
+                            if (printWindow) {
+                              printWindow.document.write(`
+                                <html>
+                                  <head><title>Etiqueta ${notebook.code}</title></head>
+                                  <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
+                                    <div style="border:2px solid black;padding:20px;text-align:center;">
+                                      <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
+                                      <div id="qrcode"></div>
+                                      <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${notebook.type.toUpperCase()}</p>
+                                      <p style="margin:5px 0 0 0;font-family:monospace;font-size:14px;">${notebook.code}</p>
+                                    </div>
+                                    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+                                    <script>
+                                      var qr = qrcode(0, 'M');
+                                      qr.addData('${notebook.code}');
+                                      qr.make();
+                                      document.getElementById('qrcode').innerHTML = qr.createImgTag(5);
+                                      setTimeout(() => window.print(), 500);
+                                    </script>
+                                  </body>
+                                </html>
+                              `);
+                              printWindow.document.close();
+                            }
+                          }}
+                          className="p-2 text-slate-400 hover:text-sesi-yellow transition-colors"
+                          title="Imprimir Etiqueta"
+                        >
+                          <FileUp size={16} />
+                        </button>
                         <button className="p-2 text-slate-400 hover:text-sesi-blue transition-colors">
                           <Edit2 size={16} />
                         </button>
@@ -355,7 +410,6 @@ export function Notebooks() {
               
               await supabase.from('notebooks').insert({
                 ...data,
-                id: Math.random().toString(36).substr(2, 9),
                 status: 'available'
               });
               
@@ -364,7 +418,7 @@ export function Notebooks() {
             }}>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Código</label>
-                <input name="code" required placeholder="Ex: NB01" className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
+                <input name="code" required autoFocus placeholder="Ex: NB01" className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Tipo</label>

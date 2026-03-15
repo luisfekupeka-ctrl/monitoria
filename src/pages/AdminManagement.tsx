@@ -39,33 +39,42 @@ export function AdminManagement() {
     setIsLoading(false);
   };
 
-  const handleToggleApproval = async (user: User) => {
-    const { error } = await supabase
-      .from('users')
-      .update({ approved: !user.approved })
-      .eq('id', user.id);
+  const handleToggleApproval = async (targetUser: User) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ approved: !targetUser.approved })
+        .eq('id', targetUser.id);
 
-    if (!error) {
+      if (error) throw error;
       fetchUsers();
+    } catch (err: any) {
+      alert('Erro ao atualizar status: ' + (err.message || 'Erro desconhecido'));
     }
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase
-      .from('users')
-      .insert([{
-        ...newUser,
-        id: Math.random().toString(36).substr(2, 9),
-        approved: true // Admins add pre-approved users
-      }]);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .insert([{
+          username: newUser.username,
+          name: newUser.name,
+          email: newUser.email,
+          password: newUser.password,
+          role: newUser.role,
+          approved: true // Admins add pre-approved users
+        }]);
 
-    if (!error) {
+      if (error) throw error;
+      
       setIsAddModalOpen(false);
       setNewUser({ username: '', name: '', email: '', password: '', role: 'operator' });
       fetchUsers();
-    } else {
-      alert('Erro ao adicionar usuário: ' + error.message);
+      alert('Colaborador cadastrado com sucesso!');
+    } catch (err: any) {
+      alert('Erro ao adicionar usuário: ' + (err.message || 'Erro desconhecido'));
     }
   };
 

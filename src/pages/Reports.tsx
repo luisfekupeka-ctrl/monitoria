@@ -202,7 +202,10 @@ export function Reports() {
               <FileDown size={18} />
               PDF
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">
+            <button 
+              onClick={exportStockExcel}
+              className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all font-sans"
+            >
               <FileDown size={18} />
               Excel
             </button>
@@ -229,7 +232,10 @@ export function Reports() {
               <FileDown size={18} />
               PDF
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">
+            <button 
+              onClick={exportLoansExcel}
+              className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all font-sans"
+            >
               <FileDown size={18} />
               Excel
             </button>

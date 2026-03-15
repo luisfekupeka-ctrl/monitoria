@@ -57,10 +57,27 @@ export function Stock() {
   };
 
   const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(products);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Estoque");
-    XLSX.writeFile(wb, "estoque_sesi.xlsx");
+    try {
+      // Prepare data for export with proper headers
+      const exportData = products.map(p => ({
+        'Nome': p.name,
+        'Categoria': p.category,
+        'Código': p.code,
+        'Quantidade': p.quantity,
+        'Unidade': p.unit,
+        'Mínimo': p.minQuantity
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Estoque");
+      
+      // Generate filename with date
+      const date = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(wb, `estoque_sesi_${date}.xlsx`);
+    } catch (err) {
+      alert('Erro ao exportar Excel: Verifique se os dados estão carregados corretamente.');
+    }
   };
 
   const handleExportPDF = () => {
@@ -163,6 +180,18 @@ export function Stock() {
             placeholder="Buscar por nome ou código..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchTerm) {
+                // If BIP scans a code, we can auto-select if unique
+                const match = products.find(p => p.code === searchTerm);
+                if (match) {
+                  setEditingProduct(match);
+                  setMovementType('out');
+                  setIsMovementModalOpen(true);
+                  setSearchTerm('');
+                }
+              }
+            }}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-sesi-blue/20 text-sm"
           />
         </div>
@@ -264,6 +293,39 @@ export function Stock() {
                     </button>
                     {isAdmin && (
                       <div className="flex gap-1 border-l border-slate-100 pl-2 ml-1">
+                        <button 
+                          onClick={() => {
+                            const printWindow = window.open('', '_blank');
+                            if (printWindow) {
+                              printWindow.document.write(`
+                                <html>
+                                  <head><title>Etiqueta ${product.code}</title></head>
+                                  <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
+                                    <div style="border:2px solid black;padding:20px;text-align:center;">
+                                      <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
+                                      <div id="qrcode"></div>
+                                      <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${product.name}</p>
+                                      <p style="margin:5px 0 0 0;font-family:monospace;font-size:14px;">${product.code}</p>
+                                    </div>
+                                    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+                                    <script>
+                                      var qr = qrcode(0, 'M');
+                                      qr.addData('${product.code}');
+                                      qr.make();
+                                      document.getElementById('qrcode').innerHTML = qr.createImgTag(5);
+                                      setTimeout(() => window.print(), 500);
+                                    </script>
+                                  </body>
+                                </html>
+                              `);
+                              printWindow.document.close();
+                            }
+                          }}
+                          className="p-2 text-slate-400 hover:text-sesi-yellow transition-colors"
+                          title="Imprimir Etiqueta"
+                        >
+                          <FileUp size={16} />
+                        </button>
                         <button 
                           onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
                           className="p-2 text-slate-400 hover:text-sesi-blue transition-colors"
@@ -382,6 +444,7 @@ export function Stock() {
                   min="1"
                   required 
                   autoFocus
+                  onFocus={(e) => e.target.select()}
                   className="w-full h-14 px-4 bg-slate-50 border-slate-100 rounded-2xl focus:ring-2 focus:ring-sesi-blue/20 outline-none text-2xl font-black text-center" 
                 />
                 <p className="text-center text-xs text-slate-400">Estoque atual: <span className="font-bold">{editingProduct.quantity}</span></p>
@@ -472,8 +535,21 @@ export function Stock() {
                   <input name="category" defaultValue={editingProduct?.category} required className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Código</label>
-                  <input name="code" defaultValue={editingProduct?.code} required className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-semibold text-slate-700">Código</label>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const randomCode = 'P' + Math.floor(1000 + Math.random() * 9000);
+                        const codeInput = document.getElementsByName('code')[0] as HTMLInputElement;
+                        if (codeInput) codeInput.value = randomCode;
+                      }}
+                      className="text-[10px] font-black text-sesi-blue hover:underline uppercase tracking-widest"
+                    >
+                      Gerar Código
+                    </button>
+                  </div>
+                  <input name="code" defaultValue={editingProduct?.code} required className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" placeholder="Bip o código ou gere um..." />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
