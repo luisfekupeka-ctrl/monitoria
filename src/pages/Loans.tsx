@@ -266,6 +266,7 @@ export function Loans() {
 
     const loanId = Date.now().toString();
     const sbLoan = {
+      id: loanId,
       beneficiary_id: selectedBeneficiaryId,
       beneficiary_name: beneficiary?.name || 'N/A',
       operator_id: user?.id,

@@ -227,7 +227,8 @@ export function Users() {
               } else {
                 const { error } = await supabase.from('professors').insert({
                   ...data,
-                  id: Math.random().toString(36).substr(2, 9)
+                  id: Math.random().toString(36).substr(2, 9),
+                  code: 'USR' + Date.now().toString().slice(-6)
                 });
                 if (error) {
                   alert('Erro ao cadastrar: ' + error.message);
