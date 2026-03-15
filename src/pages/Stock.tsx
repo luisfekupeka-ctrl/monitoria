@@ -419,12 +419,17 @@ export function Stock() {
 
               const beneficiary = beneficiaries.find(b => b.id === beneficiaryId);
 
-              await supabase.from('products')
+              const { error: updateError } = await supabase.from('products')
                 .update({ quantity: newQuantity })
                 .eq('id', editingProduct.id);
+                
+              if (updateError) {
+                alert('Erro ao atualizar produto: ' + updateError.message);
+                return;
+              }
 
               // Log movement
-              await supabase.from('stock_movements').insert({
+              const { error: logError } = await supabase.from('stock_movements').insert({
                 id: Date.now().toString(),
                 product_id: editingProduct.id,
                 product_name: editingProduct.name,
@@ -434,6 +439,10 @@ export function Stock() {
                 operator_name: user?.name || 'Monitor',
                 // beneficiaryId is not in stock_movements table yet, but we have product_id
               });
+              
+              if (logError) {
+                alert('Aviso: Estoque atualizado, mas erro ao registrar histórico: ' + logError.message);
+              }
               
               setIsMovementModalOpen(false);
               setSelectedBeneficiaryId('');
@@ -520,9 +529,17 @@ export function Stock() {
               };
 
               if (editingProduct) {
-                await supabase.from('products').update(sbPayload).eq('id', pId);
+                const { error } = await supabase.from('products').update(sbPayload).eq('id', pId);
+                if (error) {
+                  alert('Erro ao atualizar produto: ' + error.message);
+                  return;
+                }
               } else {
-                await supabase.from('products').insert(sbPayload);
+                const { error } = await supabase.from('products').insert(sbPayload);
+                if (error) {
+                  alert('Erro ao cadastrar produto: ' + error.message);
+                  return;
+                }
               }
               
               setIsModalOpen(false);

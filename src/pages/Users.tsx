@@ -217,14 +217,22 @@ export function Users() {
               const data = Object.fromEntries(formData.entries());
 
               if (editingBeneficiary) {
-                await supabase.from('professors')
+                const { error } = await supabase.from('professors')
                   .update(data)
                   .eq('id', editingBeneficiary.id);
+                if (error) {
+                  alert('Erro ao editar: ' + error.message);
+                  return;
+                }
               } else {
-                await supabase.from('professors').insert({
+                const { error } = await supabase.from('professors').insert({
                   ...data,
                   id: Math.random().toString(36).substr(2, 9)
                 });
+                if (error) {
+                  alert('Erro ao cadastrar: ' + error.message);
+                  return;
+                }
               }
               
               setIsModalOpen(false);
