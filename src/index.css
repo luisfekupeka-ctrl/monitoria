@@ -8,24 +8,171 @@
   --color-sesi-yellow: #fbbf24;
 }
 
-@layer base {
-  body {
-    @apply bg-slate-50 text-slate-900 font-sans;
-  }
+/* ─── DARK MODE GLOBAL OVERRIDES ─── */
+/* These selectors override Tailwind utility colors when .dark is on <html> */
 
-  .dark body {
-    @apply bg-gray-900 text-gray-100;
-  }
+/* Backgrounds */
+.dark .bg-slate-50,
+.dark .bg-slate-100 {
+  background-color: #111827 !important; /* gray-900 */
 }
 
-.sidebar-link-active {
-  @apply bg-sesi-yellow text-slate-900 font-semibold;
+.dark .bg-white {
+  background-color: #1f2937 !important; /* gray-800 */
 }
 
-/* Dark mode utility classes */
-.dark .dark\:bg-gray-900 { background-color: #111827; }
-.dark .dark\:bg-gray-950 { background-color: #030712; }
-.dark .dark\:bg-gray-800 { background-color: #1f2937; }
-.dark .dark\:text-white { color: #ffffff; }
-.dark .dark\:text-gray-400 { color: #9ca3af; }
-.dark .dark\:border-gray-800 { border-color: #1f2937; }
+.dark .bg-slate-50\/50 {
+  background-color: rgba(31, 41, 55, 0.5) !important;
+}
+
+/* Text colors */
+.dark .text-slate-900,
+.dark .text-slate-800 {
+  color: #f3f4f6 !important; /* gray-100 */
+}
+
+.dark .text-slate-700 {
+  color: #d1d5db !important; /* gray-300 */
+}
+
+.dark .text-slate-600 {
+  color: #9ca3af !important; /* gray-400 */
+}
+
+.dark .text-slate-500 {
+  color: #6b7280 !important; /* gray-500 */
+}
+
+.dark .text-slate-400 {
+  color: #6b7280 !important; /* gray-500 */
+}
+
+/* Borders */
+.dark .border-slate-200,
+.dark .border-slate-100 {
+  border-color: #374151 !important; /* gray-700 */
+}
+
+.dark .border-slate-50 {
+  border-color: #1f2937 !important; /* gray-800 */
+}
+
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #374151 !important;
+}
+
+/* Inputs */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #374151 !important; /* gray-700 */
+  color: #f3f4f6 !important; /* gray-100 */
+  border-color: #4b5563 !important; /* gray-600 */
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+/* Cards with specific backgrounds */
+.dark .bg-amber-50,
+.dark .bg-amber-50\/20 {
+  background-color: rgba(217, 119, 6, 0.1) !important;
+}
+
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.dark .bg-red-50,
+.dark .bg-rose-50 {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+.dark .bg-orange-50 {
+  background-color: rgba(249, 115, 22, 0.1) !important;
+}
+
+/* Blue tints */
+.dark .bg-sesi-blue\/5,
+.dark .bg-sesi-blue\/10 {
+  background-color: rgba(43, 140, 238, 0.15) !important;
+}
+
+/* Hover states */
+.dark .hover\:bg-slate-50:hover {
+  background-color: #374151 !important;
+}
+
+.dark .hover\:bg-slate-200:hover {
+  background-color: #374151 !important;
+}
+
+/* Shadows - reduce in dark mode */
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-lg,
+.dark .shadow-xl,
+.dark .shadow-2xl {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Tables */
+.dark th {
+  background-color: #1f2937 !important;
+  color: #9ca3af !important;
+}
+
+.dark tr:hover {
+  background-color: rgba(55, 65, 81, 0.5) !important;
+}
+
+.dark td {
+  color: #d1d5db !important;
+}
+
+/* Fixed modals/overlays */
+.dark .bg-slate-900\/50 {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Scrollbars */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #111827;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+/* Focus rings */
+.dark .focus\:ring-sesi-blue\/10:focus,
+.dark .focus\:ring-sesi-blue\/20:focus {
+  --tw-ring-color: rgba(43, 140, 238, 0.3) !important;
+}
+
+/* Border dashed states */
+.dark .border-dashed {
+  border-color: #374151 !important;
+}
+
+/* Pill / Badge backgrounds */
+.dark .bg-slate-100,
+.dark .bg-slate-50 {
+  background-color: #374151 !important;
+}
+
+/* Header specific */
+.dark header .bg-slate-100 {
+  background-color: #374151 !important;
+}
