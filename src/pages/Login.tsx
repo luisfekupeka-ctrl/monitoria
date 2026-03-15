@@ -61,7 +61,7 @@ export function Login() {
         if (sbError || !data) {
           setError('Usuário ou senha inválidos');
         } else {
-          const isSuperAdmin = data.username === 'admin' || data.role === 'admin';
+          const isSuperAdmin = data.username === 'admin' || data.username === 'Adminsesi' || data.role === 'admin';
           
           if (!isSuperAdmin && data.approved === false) {
             setError('Sua conta aguarda aprovação do administrador.');

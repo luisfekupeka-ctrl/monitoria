@@ -123,7 +123,7 @@ export function AdminManagement() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
         <AnimatePresence mode="popLayout">
           {filteredUsers.map((user, index) => {
-            const isSuperAdmin = user.username === 'admin';
+            const isSuperAdmin = user.username === 'admin' || user.username === 'Adminsesi';
             
             return (
               <motion.div 
@@ -209,6 +209,46 @@ export function AdminManagement() {
                       <div className="flex items-center gap-2 text-xs text-slate-500 font-medium truncate">
                         <Mail size={12} className="text-slate-300 shrink-0" />
                         <span className="truncate">{user.email}</span>
+                      </div>
+                    )}
+                    {(user as any).password_change_request && (
+                      <div className="mt-2 p-2.5 bg-amber-50 rounded-xl border border-amber-200">
+                        <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1.5">📩 Solicita Troca de Senha</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const { error } = await supabase.from('users')
+                                  .update({ password: (user as any).password_change_request, password_change_request: null })
+                                  .eq('id', user.id);
+                                if (error) throw error;
+                                alert(`Senha de ${user.name} alterada com sucesso!`);
+                                fetchUsers();
+                              } catch (err: any) {
+                                alert('Erro: ' + err.message);
+                              }
+                            }}
+                            className="flex-1 py-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-lg hover:bg-emerald-200 transition-all"
+                          >
+                            ✓ APROVAR
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const { error } = await supabase.from('users')
+                                  .update({ password_change_request: null })
+                                  .eq('id', user.id);
+                                if (error) throw error;
+                                fetchUsers();
+                              } catch (err: any) {
+                                alert('Erro: ' + err.message);
+                              }
+                            }}
+                            className="flex-1 py-1.5 bg-rose-100 text-rose-700 text-[10px] font-black rounded-lg hover:bg-rose-200 transition-all"
+                          >
+                            ✕ NEGAR
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>

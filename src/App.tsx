@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -49,22 +50,24 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-          <Route path="/estoque" element={<PrivateRoute><Stock /></PrivateRoute>} />
-          <Route path="/notebooks" element={<PrivateRoute><Notebooks /></PrivateRoute>} />
-          <Route path="/emprestimos" element={<PrivateRoute><Loans /></PrivateRoute>} />
-          <Route path="/usuarios" element={<PrivateRoute><Users /></PrivateRoute>} />
-          <Route path="/relatorios" element={<PrivateRoute><Reports /></PrivateRoute>} />
-          <Route path="/gestao-acesso" element={<AdminRoute><AdminManagement /></AdminRoute>} />
-          
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            
+            <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+            <Route path="/estoque" element={<PrivateRoute><Stock /></PrivateRoute>} />
+            <Route path="/notebooks" element={<PrivateRoute><Notebooks /></PrivateRoute>} />
+            <Route path="/emprestimos" element={<PrivateRoute><Loans /></PrivateRoute>} />
+            <Route path="/usuarios" element={<PrivateRoute><Users /></PrivateRoute>} />
+            <Route path="/relatorios" element={<PrivateRoute><Reports /></PrivateRoute>} />
+            <Route path="/gestao-acesso" element={<AdminRoute><AdminManagement /></AdminRoute>} />
+            
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

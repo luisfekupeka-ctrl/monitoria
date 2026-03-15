@@ -12,9 +12,20 @@
   body {
     @apply bg-slate-50 text-slate-900 font-sans;
   }
+
+  .dark body {
+    @apply bg-gray-900 text-gray-100;
+  }
 }
 
 .sidebar-link-active {
   @apply bg-sesi-yellow text-slate-900 font-semibold;
 }
 
+/* Dark mode utility classes */
+.dark .dark\:bg-gray-900 { background-color: #111827; }
+.dark .dark\:bg-gray-950 { background-color: #030712; }
+.dark .dark\:bg-gray-800 { background-color: #1f2937; }
+.dark .dark\:text-white { color: #ffffff; }
+.dark .dark\:text-gray-400 { color: #9ca3af; }
+.dark .dark\:border-gray-800 { border-color: #1f2937; }
