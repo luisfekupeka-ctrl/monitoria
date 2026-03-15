@@ -11,7 +11,9 @@ import {
   GraduationCap,
   Briefcase,
   Phone,
-  MessageCircle
+  MessageCircle,
+  Copy,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Beneficiary, BeneficiaryType, Loan } from '../types';
@@ -215,20 +217,35 @@ export function Users() {
               </div>
             )}
             {beneficiary.phone && (
-              <div className="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <Phone size={14} />
-                  <span>{beneficiary.phone}</span>
+              <div className="mt-3 pt-3 border-t border-slate-50">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Phone size={14} />
+                    <span>{beneficiary.phone}</span>
+                  </div>
                 </div>
-                <a 
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`p-2 rounded-lg transition-all flex items-center gap-1.5 ${buttonColor}`}
-                >
-                  <MessageCircle size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">{buttonLabel}</span>
-                </a>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(message);
+                      const btn = document.getElementById(`copy-${beneficiary.id}`);
+                      if (btn) { btn.textContent = '✓ Copiado!'; setTimeout(() => { btn.textContent = 'Copiar'; }, 2000); }
+                    }}
+                    className="flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-bold"
+                  >
+                    <Copy size={14} />
+                    <span id={`copy-${beneficiary.id}`}>Copiar</span>
+                  </button>
+                  <a 
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${buttonColor} text-xs font-bold`}
+                  >
+                    <MessageCircle size={14} />
+                    <span>{buttonLabel}</span>
+                  </a>
+                </div>
               </div>
             )}
           </motion.div>
