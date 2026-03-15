@@ -84,7 +84,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
               <div className="size-8 rounded-full bg-sesi-blue/10 flex items-center justify-center text-sesi-blue font-bold text-xs">
-                {user?.name.split(' ').map(n => n[0]).join('')}
+                {(user?.name || 'U').split(' ').map(n => n[0]).join('')}
               </div>
               <div className="flex flex-col">
                 <p className="text-xs font-bold text-slate-900 leading-none">{user?.name}</p>

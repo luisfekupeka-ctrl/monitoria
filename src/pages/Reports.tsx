@@ -41,8 +41,8 @@ export function Reports() {
           loanDate: l.loan_date,
           returnDate: l.return_date,
           operatorId: l.operator_id,
-          operatorName: l.operator_name,
-          items: l.loan_items.map((item: any) => item.notebook_code)
+          operatorName: l.operator_name || 'Monitor',
+          items: Array.isArray(l.loan_items) ? l.loan_items.map((item: any) => item.notebook_code) : []
         })));
       }
 
@@ -82,8 +82,8 @@ export function Reports() {
     (doc as any).autoTable({
       head: [['Beneficiário', 'Itens', 'Data Empréstimo', 'Status']],
       body: loans.map(l => [
-        l.beneficiaryName, 
-        l.items.join(', '), 
+        l.beneficiaryName || 'N/A', 
+        (l.items || []).join(', '), 
         formatDate(l.loanDate),
         l.status === 'active' ? 'ATIVO' : 'DEVOLVIDO'
       ]),

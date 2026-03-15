@@ -104,7 +104,8 @@ export function Notebooks() {
   };
 
   const filteredNotebooks = notebooks.filter(n => {
-    const matchesSearch = n.code.toLowerCase().includes(searchTerm.toLowerCase());
+    const code = n.code || '';
+    const matchesSearch = code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = !statusFilter || n.status === statusFilter;
     const matchesTab = n.type === activeTab;
     return matchesSearch && matchesStatus && matchesTab;

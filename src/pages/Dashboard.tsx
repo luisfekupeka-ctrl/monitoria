@@ -39,9 +39,9 @@ export function Dashboard() {
           beneficiaryId: l.beneficiary_id,
           loanDate: l.loan_date,
           returnDate: l.return_date,
-          operatorId: l.operator_id,
-          operatorName: l.operator_name,
-          items: l.loan_items.map((item: any) => item.notebook_code)
+          operatorId: l.operator_id || l.beneficiary_id,
+          operatorName: l.operator_name || 'Monitor',
+          items: Array.isArray(l.loan_items) ? l.loan_items.map((item: any) => item.notebook_code) : []
         })));
       }
 
@@ -52,9 +52,9 @@ export function Dashboard() {
     fetchData();
   }, []);
 
-  const availableNotebooks = notebooks.filter(n => n.status === 'available').length;
-  const loanedNotebooks = notebooks.filter(n => n.status === 'loaned').length;
-  const lowStockProducts = products.filter(p => p.quantity <= p.minQuantity).length;
+  const availableNotebooks = (notebooks || []).filter(n => n.status === 'available').length;
+  const loanedNotebooks = (notebooks || []).filter(n => n.status === 'loaned').length;
+  const lowStockProducts = (products || []).filter(p => (p.quantity ?? 0) <= (p.minQuantity ?? 0)).length;
   const recentMovements = 28; // Mocked for now
 
   const stats = [

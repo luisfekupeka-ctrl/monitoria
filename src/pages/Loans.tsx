@@ -64,8 +64,8 @@ export function Loans() {
         loanDate: l.loan_date,
         returnDate: l.return_date,
         operatorId: l.operator_id,
-        operatorName: l.operator_name,
-        items: l.loan_items.map((item: any) => item.notebook_code)
+        operatorName: l.operator_name || 'Monitor',
+        items: Array.isArray(l.loan_items) ? l.loan_items.map((item: any) => item.notebook_code) : []
       }));
       setActiveLoans(mappedLoans.filter((l: Loan) => l.status === 'active'));
     }
