@@ -286,7 +286,27 @@ export function Notebooks() {
                     <button className="p-2 text-slate-400 hover:text-sesi-blue transition-colors">
                       <Edit2 size={16} />
                     </button>
-                    <button className="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                    <button 
+                      onClick={async () => {
+                        if (confirm(`Deseja excluir o equipamento ${notebook.code}?`)) {
+                          try {
+                            const { error } = await supabase.from('notebooks').delete().eq('id', notebook.id);
+                            if (error) {
+                              if (error.code === '23503') {
+                                alert('Não é possível excluir este equipamento pois ele está vinculado a um histórico de empréstimo.');
+                              } else {
+                                alert('Erro ao excluir: ' + error.message);
+                              }
+                              return;
+                            }
+                            fetchNotebooks();
+                          } catch (err) {
+                            alert('Erro inesperado ao excluir.');
+                          }
+                        }
+                      }}
+                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                    >
                       <Trash2 size={16} />
                     </button>
                   </div>

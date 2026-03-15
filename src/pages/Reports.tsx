@@ -11,7 +11,7 @@ import {
 import { motion } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { Product, Loan, StockMovement } from '../types';
 import { formatDate, cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
@@ -60,36 +60,114 @@ export function Reports() {
   }, []);
 
   const exportStockReport = () => {
-    const doc = new jsPDF();
-    doc.text("Relatório de Estoque Atual", 14, 15);
-    (doc as any).autoTable({
-      head: [['Produto', 'Categoria', 'Qtd', 'Mínima', 'Status']],
-      body: products.map(p => [
-        p.name, 
-        p.category, 
-        p.quantity, 
-        p.minQuantity,
-        p.quantity <= p.minQuantity ? 'CRÍTICO' : 'NORMAL'
-      ]),
-      startY: 20,
-    });
-    doc.save("relatorio_estoque.pdf");
+    try {
+      const doc = new jsPDF();
+      doc.text("Relatório de Estoque Atual", 14, 15);
+      autoTable(doc, {
+        head: [['Produto', 'Categoria', 'Qtd', 'Mínima', 'Status']],
+        body: products.map(p => [
+          p.name, 
+          p.category, 
+          p.quantity, 
+          p.minQuantity,
+          (p.quantity ?? 0) <= (p.minQuantity ?? 0) ? 'CRÍTICO' : 'NORMAL'
+        ]),
+        startY: 20,
+      });
+      doc.save("relatorio_estoque.pdf");
+    } catch (error) {
+      console.error('Erro ao exportar PDF de estoque:', error);
+      alert('Não foi possível gerar o PDF de estoque. Tente novamente.');
+    }
+  };
+
+  const exportStockExcel = () => {
+    try {
+      const data = products.map(p => ({
+        'Produto': p.name,
+        'Categoria': p.category,
+        'Quantidade': p.quantity,
+        'Mínima': p.minQuantity,
+        'Status': (p.quantity ?? 0) <= (p.minQuantity ?? 0) ? 'CRÍTICO' : 'NORMAL'
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Estoque");
+      XLSX.writeFile(wb, "relatorio_estoque.xlsx");
+    } catch (error) {
+      console.error('Erro ao exportar Excel de estoque:', error);
+      alert('Não foi possível gerar a planilha de estoque.');
+    }
   };
 
   const exportLoanHistory = () => {
-    const doc = new jsPDF();
-    doc.text("Histórico de Empréstimos", 14, 15);
-    (doc as any).autoTable({
-      head: [['Beneficiário', 'Itens', 'Data Empréstimo', 'Status']],
-      body: loans.map(l => [
-        l.beneficiaryName || 'N/A', 
-        (l.items || []).join(', '), 
-        formatDate(l.loanDate),
-        l.status === 'active' ? 'ATIVO' : 'DEVOLVIDO'
-      ]),
-      startY: 20,
-    });
-    doc.save("historico_emprestimos.pdf");
+    try {
+      const doc = new jsPDF();
+      doc.text("Histórico de Empréstimos", 14, 15);
+      autoTable(doc, {
+        head: [['Beneficiário', 'Itens', 'Data Empréstimo', 'Status']],
+        body: loans.map(l => [
+          l.beneficiaryName || 'N/A', 
+          (l.items || []).join(', '), 
+          l.loanDate ? formatDate(l.loanDate) : '--/--/--',
+          l.status === 'active' ? 'ATIVO' : 'DEVOLVIDO'
+        ]),
+        startY: 20,
+      });
+      doc.save("historico_emprestimos.pdf");
+    } catch (error) {
+      console.error('Erro ao exportar PDF de empréstimos:', error);
+      alert('Erro ao gerar PDF de empréstimos.');
+    }
+  };
+
+  const exportLoansExcel = () => {
+    try {
+      const data = loans.map(l => ({
+        'Beneficiário': l.beneficiaryName || 'N/A',
+        'Equipamentos': (l.items || []).join(', '),
+        'Data Empréstimo': l.loanDate ? formatDate(l.loanDate) : '',
+        'Operador': l.operatorName || 'Sistema',
+        'Status': l.status === 'active' ? 'ATIVO' : 'DEVOLVIDO'
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Empréstimos");
+      XLSX.writeFile(wb, "historico_emprestimos.xlsx");
+    } catch (error) {
+      console.error('Erro ao exportar Excel de empréstimos:', error);
+      alert('Erro ao gerar a planilha de empréstimos.');
+    }
+  };
+
+  const exportDailyMovement = () => {
+    try {
+      const doc = new jsPDF();
+      doc.text("Movimentação Diária - " + formatDate(new Date().toISOString()), 14, 15);
+      
+      const last24h = movements.filter(m => {
+        const movDate = new Date(m.date);
+        const dayAgo = new Date();
+        dayAgo.setHours(dayAgo.getHours() - 24);
+        return movDate >= dayAgo;
+      });
+
+      autoTable(doc, {
+        head: [['Produto', 'Tipo', 'Qtd', 'Origem/Destino', 'Operador']],
+        body: last24h.map(m => [
+          m.productName,
+          m.type === 'in' ? 'ENTRADA' : 'SAÍDA',
+          m.quantity,
+          m.beneficiaryName || '-',
+          m.operatorName
+        ]),
+        startY: 20,
+      });
+      doc.save("movimentacao_diaria.pdf");
+    } catch (error) {
+      console.error('Erro ao exportar relatório diário:', error);
+      alert('Erro ao gerar relatório diário.');
+    }
   };
 
   return (
@@ -170,7 +248,10 @@ export function Reports() {
           </div>
           <h3 className="text-xl font-bold text-slate-900 mb-2">Movimentação Diária</h3>
           <p className="text-slate-500 text-sm mb-8">Resumo de entradas e saídas de produtos nas últimas 24 horas.</p>
-          <button className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-800 transition-all">
+          <button 
+            onClick={exportDailyMovement}
+            className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-800 transition-all"
+          >
             <FileDown size={18} />
             Gerar Relatório Diário
           </button>

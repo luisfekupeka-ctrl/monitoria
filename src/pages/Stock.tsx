@@ -263,7 +263,27 @@ export function Stock() {
                     >
                       <Edit2 size={16} />
                     </button>
-                    <button className="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                    <button 
+                      onClick={async () => {
+                        if (confirm(`Deseja excluir o produto ${product.name}?`)) {
+                          try {
+                            const { error } = await supabase.from('products').delete().eq('id', product.id);
+                            if (error) {
+                              if (error.code === '23503') {
+                                alert('Não é possível excluir este produto pois existem movimentações vinculadas a ele.');
+                              } else {
+                                alert('Erro ao excluir: ' + error.message);
+                              }
+                              return;
+                            }
+                            fetchProducts();
+                          } catch (err) {
+                            alert('Erro inesperado ao excluir.');
+                          }
+                        }
+                      }}
+                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                    >
                       <Trash2 size={16} />
                     </button>
                   </div>

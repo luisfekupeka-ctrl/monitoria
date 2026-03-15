@@ -212,23 +212,32 @@ export function Loans() {
     if (!confirm(`Confirmar devolução de todos os ${loan.items.length} itens de ${loan.beneficiaryName}?`)) return;
     
     try {
-      await Promise.all(loan.items.map(code => {
-        const nb = notebooks.find(n => n.code === code);
-        return supabase.from('notebooks')
-          .update({ status: 'available' })
-          .eq('id', nb?.id);
-      }));
+      // Get notebook IDs for the items in this loan
+      const notebookIds = loan.items
+        .map(code => notebooks.find(n => n.code === code)?.id)
+        .filter(Boolean) as string[];
 
-      await supabase.from('loans')
+      if (notebookIds.length > 0) {
+        // Update all notebooks to available in one go
+        await supabase.from('notebooks')
+          .update({ status: 'available' })
+          .in('id', notebookIds);
+      }
+
+      // Mark loan as returned
+      const { error: loanError } = await supabase.from('loans')
         .update({ 
           status: 'returned', 
           return_date: new Date().toISOString() 
         })
         .eq('id', loan.id);
 
+      if (loanError) throw loanError;
+
       setSuccess(`Todos os itens de ${loan.beneficiaryName} foram devolvidos.`);
       fetchData();
     } catch (err) {
+      console.error('Error in handleReturnAll:', err);
       setError('Erro ao processar devolução total.');
     }
   };

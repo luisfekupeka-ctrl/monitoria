@@ -10,7 +10,8 @@ import {
   LogOut,
   Monitor,
   Search,
-  Bell
+  Bell,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
@@ -28,6 +29,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: Users, label: 'Usuários', path: '/usuarios' },
     { icon: BarChart4, label: 'Relatórios', path: '/relatorios' },
   ];
+
+  // Add Admin only menu item
+  if (user?.role === 'admin') {
+    menuItems.push({ icon: ShieldCheck, label: 'Gestão de Acesso', path: '/gestao-acesso' });
+  }
 
   const handleLogout = () => {
     logout();

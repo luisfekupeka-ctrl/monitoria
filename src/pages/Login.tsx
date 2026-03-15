@@ -28,8 +28,22 @@ export function Login() {
       if (sbError || !data) {
         setError('Usuário ou senha inválidos');
       } else {
+        // Super Admin check - can be an email or a specific username
+        // We'll treat 'admin' or users with a specific email as super admins
+        const isSuperAdmin = data.username === 'admin' || data.role === 'admin';
+        
+        // If not super admin, must be approved
+        if (!isSuperAdmin && data.approved === false) {
+          setError('Sua conta aguarda aprovação do administrador.');
+          setIsSubmitting(false);
+          return;
+        }
+
         const { password, ...userWithoutPassword } = data;
-        login(userWithoutPassword);
+        login({
+          ...userWithoutPassword,
+          role: isSuperAdmin ? 'admin' : data.role
+        });
         navigate('/');
       }
     } catch (err) {

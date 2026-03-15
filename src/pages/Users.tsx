@@ -111,8 +111,20 @@ export function Users() {
                 <button 
                   onClick={async () => {
                     if (confirm('Deseja excluir este cadastro?')) {
-                      await supabase.from('professors').delete().eq('id', beneficiary.id);
-                      fetchBeneficiaries();
+                      try {
+                        const { error } = await supabase.from('professors').delete().eq('id', beneficiary.id);
+                        if (error) {
+                          if (error.code === '23503') {
+                            alert('Não é possível excluir este cadastro pois existem empréstimos vinculados a ele.');
+                          } else {
+                            alert('Erro ao excluir: ' + error.message);
+                          }
+                          return;
+                        }
+                        fetchBeneficiaries();
+                      } catch (err) {
+                        alert('Erro inesperado ao excluir.');
+                      }
                     }
                   }}
                   className="p-2 text-slate-400 hover:text-red-500 transition-colors"

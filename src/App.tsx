@@ -9,6 +9,7 @@ import { Notebooks } from './pages/Notebooks';
 import { Loans } from './pages/Loans';
 import { Users } from './pages/Users';
 import { Reports } from './pages/Reports';
+import { AdminManagement } from './pages/AdminManagement';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="/emprestimos" element={<PrivateRoute><Loans /></PrivateRoute>} />
           <Route path="/usuarios" element={<PrivateRoute><Users /></PrivateRoute>} />
           <Route path="/relatorios" element={<PrivateRoute><Reports /></PrivateRoute>} />
+          <Route path="/gestao-acesso" element={<PrivateRoute><AdminManagement /></PrivateRoute>} />
           
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
