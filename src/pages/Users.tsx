@@ -14,7 +14,7 @@ import {
   MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Beneficiary, BeneficiaryType } from '../types';
+import { Beneficiary, BeneficiaryType, Loan } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -25,14 +25,21 @@ export function Users() {
   const [editingBeneficiary, setEditingBeneficiary] = useState<Beneficiary | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const [activeLoans, setActiveLoans] = useState<Loan[]>([]);
 
   useEffect(() => {
     fetchBeneficiaries();
+    fetchActiveLoans();
   }, []);
 
   const fetchBeneficiaries = async () => {
     const { data } = await supabase.from('professors').select('*');
     if (data) setBeneficiaries(data);
+  };
+
+  const fetchActiveLoans = async () => {
+    const { data } = await supabase.from('loans').select('*').eq('status', 'active');
+    if (data) setActiveLoans(data || []);
   };
 
   const filteredBeneficiaries = beneficiaries
@@ -94,7 +101,19 @@ export function Users() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence mode="popLayout">
-          {filteredBeneficiaries.map((beneficiary, index) => (
+          {filteredBeneficiaries.map((beneficiary, index) => {
+            const userLoans = activeLoans.filter(l => l.beneficiaryId === beneficiary.id);
+            const totalItems = userLoans.reduce((acc, loan) => acc + loan.items.length, 0);
+            const itemLabel = totalItems === 1 ? 'equipamento' : 'equipamentos';
+            const itemsList = userLoans.flatMap(l => l.items).join(', ');
+            
+            const message = totalItems > 0 
+              ? `Olá ${beneficiary.name.split(' ')[0]}, notamos que você está com ${totalItems} ${itemLabel} da Monitoria (${itemsList}). Este é um aviso padrão para devolução até as 17:45 hoje. Obrigado!`
+              : `Olá ${beneficiary.name.split(' ')[0]}, lembramos que os equipamentos emprestados pela Monitoria precisam ser devolvidos até às 17:45 hoje. Obrigado!`;
+        
+            const whatsappUrl = `https://wa.me/${beneficiary.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+
+            return (
             <motion.div 
               key={beneficiary.id}
               layout
@@ -161,7 +180,7 @@ export function Users() {
                   <span>{beneficiary.phone}</span>
                 </div>
                 <a 
-                  href={`https://wa.me/${beneficiary.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${beneficiary.name.split(' ')[0]}, lembramos que os equipamentos emprestados pela Monitoria precisam ser devolvidos até às 17:45 hoje. Obrigado!`)}`}
+                  href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1.5"
@@ -172,7 +191,7 @@ export function Users() {
               </div>
             )}
           </motion.div>
-        ))}
+        )})}
         </AnimatePresence>
         {filteredBeneficiaries.length === 0 && (
           <div className="col-span-full py-12 text-center text-slate-400 text-sm italic">
