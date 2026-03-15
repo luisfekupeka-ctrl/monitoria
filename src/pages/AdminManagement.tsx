@@ -60,6 +60,7 @@ export function AdminManagement() {
       const { error } = await supabase
         .from('users')
         .insert([{
+          id: Math.random().toString(36).substr(2, 9),
           username: newUser.username,
           name: newUser.name,
           email: newUser.email,
