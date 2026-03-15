@@ -266,7 +266,6 @@ export function Loans() {
 
     const loanId = Date.now().toString();
     const sbLoan = {
-      id: loanId,
       beneficiary_id: selectedBeneficiaryId,
       beneficiary_name: beneficiary?.name || 'N/A',
       operator_id: user?.id,
@@ -276,15 +275,31 @@ export function Loans() {
     };
 
     try {
-      const { error: loanError } = await supabase.from('loans').insert(sbLoan);
+      const { data: newLoan, error: loanError } = await supabase
+        .from('loans')
+        .insert(sbLoan)
+        .select()
+        .single();
 
-      if (!loanError) {
+      if (loanError) {
+        console.error("Erro no supabase (loans):", loanError);
+        setError('Erro ao salvar empréstimo: ' + loanError.message);
+        return;
+      }
+
+      if (newLoan) {
         // Insert loan items
         const sbItems = selectedItems.map(code => ({
-          loan_id: loanId,
+          loan_id: newLoan.id,
           notebook_code: code
         }));
-        await supabase.from('loan_items').insert(sbItems);
+        const { error: itemsError } = await supabase.from('loan_items').insert(sbItems);
+        
+        if (itemsError) {
+           console.error("Erro no supabase (loan_items):", itemsError);
+           // Not doing full rollback, but warning the user
+           setError('Aviso: empréstimo criado, mas falha ao salvar itens: ' + itemsError.message);
+        }
 
         // Update notebooks status
         await Promise.all(selectedItems.map(code => {
@@ -300,8 +315,9 @@ export function Loans() {
         setIsLoanModalOpen(false);
         fetchData();
       }
-    } catch (err) {
-      setError('Erro ao salvar empréstimo.');
+    } catch (err: any) {
+      console.error(err);
+      setError('Erro inesperado: ' + err.message);
     }
   };
 
