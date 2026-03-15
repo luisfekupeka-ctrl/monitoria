@@ -303,16 +303,19 @@ export function Stock() {
                                   <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
                                     <div style="border:2px solid black;padding:20px;text-align:center;">
                                       <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
-                                      <div id="qrcode"></div>
+                                      <svg id="barcode"></svg>
                                       <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${product.name}</p>
-                                      <p style="margin:5px 0 0 0;font-family:monospace;font-size:14px;">${product.code}</p>
                                     </div>
-                                    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+                                    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
                                     <script>
-                                      var qr = qrcode(0, 'M');
-                                      qr.addData('${product.code}');
-                                      qr.make();
-                                      document.getElementById('qrcode').innerHTML = qr.createImgTag(5);
+                                      JsBarcode("#barcode", "${product.code}", {
+                                        format: "CODE128",
+                                        displayValue: true,
+                                        width: 2,
+                                        height: 60,
+                                        margin: 10,
+                                        fontSize: 16
+                                      });
                                       setTimeout(() => window.print(), 500);
                                     </script>
                                   </body>
@@ -582,16 +585,19 @@ export function Stock() {
                             <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
                               <div style="border:2px solid black;padding:20px;text-align:center;">
                                 <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
-                                <div id="qrcode"></div>
+                                <svg id="barcode"></svg>
                                 <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${editingProduct.name}</p>
-                                <p style="margin:5px 0 0 0;font-family:monospace;font-size:14px;">${editingProduct.code}</p>
                               </div>
-                              <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+                              <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
                               <script>
-                                var qr = qrcode(0, 'M');
-                                qr.addData('${editingProduct.code}');
-                                qr.make();
-                                document.getElementById('qrcode').innerHTML = qr.createImgTag(5);
+                                JsBarcode("#barcode", "${editingProduct.code}", {
+                                  format: "CODE128",
+                                  displayValue: true,
+                                  width: 2,
+                                  height: 60,
+                                  margin: 10,
+                                  fontSize: 16
+                                });
                                 setTimeout(() => window.print(), 500);
                               </script>
                             </body>
