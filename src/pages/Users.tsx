@@ -40,8 +40,23 @@ export function Users() {
   };
 
   const fetchActiveLoans = async () => {
-    const { data } = await supabase.from('loans').select('*').eq('status', 'active');
-    if (data) setActiveLoans(data || []);
+    // Fetch active loans
+    const { data: loansData } = await supabase.from('loans').select('*').eq('status', 'active');
+    if (!loansData) { setActiveLoans([]); return; }
+
+    // Fetch all loan_items for these loans to get notebook codes
+    const loanIds = loansData.map(l => l.id);
+    const { data: itemsData } = await supabase.from('loan_items').select('*').in('loan_id', loanIds);
+
+    // Merge items into each loan
+    const loansWithItems = loansData.map(loan => ({
+      ...loan,
+      beneficiaryId: loan.beneficiary_id || loan.beneficiaryId,
+      beneficiaryName: loan.beneficiary_name || loan.beneficiaryName,
+      items: (itemsData || []).filter(i => i.loan_id === loan.id).map(i => i.notebook_code)
+    }));
+
+    setActiveLoans(loansWithItems);
   };
 
   const filteredBeneficiaries = beneficiaries
@@ -151,10 +166,6 @@ export function Users() {
         
             const whatsappUrl = `https://wa.me/55${beneficiary.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
 
-            const openWhatsApp = () => {
-              window.open(whatsappUrl, 'whatsapp_monitoria');
-            };
-
             return (
             <motion.div 
               key={beneficiary.id}
@@ -241,19 +252,12 @@ export function Users() {
                     onClick={() => {
                       navigator.clipboard.writeText(message);
                       const btn = document.getElementById(`copy-${beneficiary.id}`);
-                      if (btn) { btn.textContent = '✓ Copiado!'; setTimeout(() => { btn.textContent = 'Copiar'; }, 2000); }
+                      if (btn) { btn.textContent = '✓ Copiado!'; setTimeout(() => { btn.textContent = 'Copiar Msg'; }, 2000); }
                     }}
-                    className="flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-bold"
+                    className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 text-xs font-bold ${totalItems > 0 ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                   >
                     <Copy size={14} />
-                    <span id={`copy-${beneficiary.id}`}>Copiar</span>
-                  </button>
-                  <button 
-                    onClick={openWhatsApp}
-                    className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${buttonColor} text-xs font-bold cursor-pointer`}
-                  >
-                    <MessageCircle size={14} />
-                    <span>{buttonLabel}</span>
+                    <span id={`copy-${beneficiary.id}`}>Copiar Msg</span>
                   </button>
                 </div>
               </div>
