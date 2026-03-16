@@ -104,7 +104,7 @@ export function Users() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence mode="popLayout">
           {filteredBeneficiaries.map((beneficiary, index) => {
-            const userLoans = activeLoans.filter(l => l.beneficiaryId === beneficiary.id);
+            const userLoans = activeLoans.filter(l => (l.beneficiaryId || (l as any).beneficiary_id) === beneficiary.id);
             const totalItems = userLoans.reduce((acc, loan) => acc + (loan.items?.length || 0), 0);
             const itemsList = userLoans.flatMap(l => l.items || []);
             const firstName = beneficiary.name.split(' ')[0];
@@ -150,6 +150,10 @@ export function Users() {
             }
         
             const whatsappUrl = `https://wa.me/55${beneficiary.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+
+            const openWhatsApp = () => {
+              window.open(whatsappUrl, 'whatsapp_monitoria');
+            };
 
             return (
             <motion.div 
@@ -213,7 +217,7 @@ export function Users() {
               </span>
               {totalItems > 0 && (
                 <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
-                  {totalItems} {totalItems === 1 ? 'item' : 'itens'}
+                  {totalItems} {totalItems === 1 ? 'item' : 'itens'}: {itemsList.join(', ')}
                 </span>
               )}
             </div>
@@ -244,14 +248,13 @@ export function Users() {
                     <Copy size={14} />
                     <span id={`copy-${beneficiary.id}`}>Copiar</span>
                   </button>
-                  <a 
-                    href={whatsappUrl}
-                    target="_self"
-                    className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${buttonColor} text-xs font-bold`}
+                  <button 
+                    onClick={openWhatsApp}
+                    className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${buttonColor} text-xs font-bold cursor-pointer`}
                   >
                     <MessageCircle size={14} />
                     <span>{buttonLabel}</span>
-                  </a>
+                  </button>
                 </div>
               </div>
             )}
