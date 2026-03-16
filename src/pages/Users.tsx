@@ -177,13 +177,21 @@ export function Users() {
                     onClick={async () => {
                       if (confirm('Deseja excluir este cadastro?')) {
                         try {
+                          // First delete loan_items linked to this beneficiary's loans
+                          const { data: loans } = await supabase
+                            .from('loans')
+                            .select('id')
+                            .eq('beneficiary_id', beneficiary.id);
+                          
+                          if (loans && loans.length > 0) {
+                            const loanIds = loans.map(l => l.id);
+                            await supabase.from('loan_items').delete().in('loan_id', loanIds);
+                            await supabase.from('loans').delete().eq('beneficiary_id', beneficiary.id);
+                          }
+
                           const { error } = await supabase.from('professors').delete().eq('id', beneficiary.id);
                           if (error) {
-                            if (error.code === '23503') {
-                              alert('Não é possível excluir este cadastro pois existem empréstimos vinculados a ele.');
-                            } else {
-                              alert('Erro ao excluir: ' + error.message);
-                            }
+                            alert('Erro ao excluir: ' + error.message);
                             return;
                           }
                           fetchBeneficiaries();
@@ -238,8 +246,7 @@ export function Users() {
                   </button>
                   <a 
                     href={whatsappUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    target="_self"
                     className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${buttonColor} text-xs font-bold`}
                   >
                     <MessageCircle size={14} />
