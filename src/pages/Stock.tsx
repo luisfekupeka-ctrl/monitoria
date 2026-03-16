@@ -97,26 +97,76 @@ export function Stock() {
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws);
-      
-      const mappedData = data.map((p: any) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        name: p.name,
-        category: p.category,
-        code: p.code,
-        quantity: Number(p.quantity),
-        min_quantity: Number(p.minQuantity),
-        unit: p.unit
-      }));
-      
-      await supabase.from('products').insert(mappedData);
-      fetchProducts();
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data: any[] = XLSX.utils.sheet_to_json(ws);
+        
+        if (data.length === 0) {
+          alert('Planilha vazia! Verifique o arquivo.');
+          return;
+        }
+
+        // Flexible column mapping: accept PT or EN headers
+        const mappedData = data.map((row: any) => {
+          const name = row['Nome'] || row['nome'] || row['name'] || row['Name'] || row['NOME'] || row['Produto'] || row['produto'] || '';
+          const category = row['Categoria'] || row['categoria'] || row['category'] || row['Category'] || row['CATEGORIA'] || 'Geral';
+          const code = row['Código'] || row['codigo'] || row['code'] || row['Code'] || row['CODIGO'] || row['CÓDIGO'] || '';
+          const quantity = Number(row['Quantidade'] || row['quantidade'] || row['quantity'] || row['Qtd'] || row['qtd'] || row['QTD'] || 0);
+          const unit = row['Unidade'] || row['unidade'] || row['unit'] || row['Unit'] || row['UNIDADE'] || 'un';
+          const minQuantity = Number(row['Mínimo'] || row['minimo'] || row['Minimo'] || row['min_quantity'] || row['Min'] || row['min'] || 0);
+
+          return {
+            id: Math.random().toString(36).substr(2, 9),
+            name: name.toString().trim(),
+            category: category.toString().trim(),
+            code: code.toString().trim(),
+            quantity: isNaN(quantity) ? 0 : quantity,
+            unit: unit.toString().trim(),
+            min_quantity: isNaN(minQuantity) ? 0 : minQuantity
+          };
+        }).filter(p => p.name !== ''); // remove rows without name
+
+        if (mappedData.length === 0) {
+          alert('Nenhum produto encontrado na planilha.\n\nSua planilha precisa ter pelo menos a coluna "Nome" (ou "name").\nColunas opcionais: Categoria, Código, Quantidade, Unidade, Mínimo.');
+          return;
+        }
+
+        // Filter out duplicates by code (if code exists)
+        const existingCodes = products.map(p => p.code).filter(Boolean);
+        const newItems = mappedData.filter(p => !p.code || !existingCodes.includes(p.code));
+        const skipped = mappedData.length - newItems.length;
+
+        if (newItems.length === 0) {
+          alert(`Todos os ${mappedData.length} produtos da planilha já existem no sistema.`);
+          return;
+        }
+
+        // Insert in batches of 50
+        let inserted = 0;
+        for (let i = 0; i < newItems.length; i += 50) {
+          const batch = newItems.slice(i, i + 50);
+          const { error } = await supabase.from('products').insert(batch);
+          if (error) {
+            alert(`Erro ao importar lote ${Math.floor(i/50)+1}: ${error.message}`);
+            break;
+          }
+          inserted += batch.length;
+        }
+
+        fetchProducts();
+        
+        let msg = `✅ Importação concluída!\n\n📥 ${inserted} produtos importados com sucesso.`;
+        if (skipped > 0) msg += `\n⏭️ ${skipped} duplicados ignorados (já existiam).`;
+        alert(msg);
+      } catch (err: any) {
+        alert('Erro ao ler planilha: ' + err.message);
+      }
     };
     reader.readAsBinaryString(file);
+    e.target.value = '';
   };
 
   const filteredProducts = products.filter(p => {
