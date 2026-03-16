@@ -115,6 +115,43 @@ export function Dashboard() {
         </Link>
       </div>
 
+      {/* Overdue Notification Banner */}
+      {(() => {
+        const now = new Date();
+        const isAfterCutoff = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 45);
+        const activeLoans = (loans || []).filter(l => l.status === 'active');
+        
+        if (isAfterCutoff && activeLoans.length > 0) {
+          const uniqueNames = [...new Set(activeLoans.map(l => l.beneficiaryName))];
+          const totalItems = activeLoans.reduce((acc, l) => acc + (l.items?.length || 0), 0);
+          
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 flex items-center gap-4"
+            >
+              <div className="size-12 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
+                <AlertTriangle size={24} className="text-red-600 animate-pulse" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-red-800 font-black text-sm">⏰ ATENÇÃO: {totalItems} equipamento(s) em atraso!</h3>
+                <p className="text-red-600 text-xs mt-1">
+                  Horário de devolução (17:45) passou. Pendente com: <strong>{uniqueNames.join(', ')}</strong>
+                </p>
+              </div>
+              <Link
+                to="/usuarios"
+                className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black hover:bg-red-700 transition-all shrink-0"
+              >
+                VER USUÁRIOS →
+              </Link>
+            </motion.div>
+          );
+        }
+        return null;
+      })()}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, i) => (
