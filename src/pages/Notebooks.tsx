@@ -75,23 +75,78 @@ export function Notebooks() {
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws);
-      
-      const mappedData = data.map((n: any) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        code: n.code,
-        type: n.type,
-        status: 'available'
-      }));
-      
-      await supabase.from('notebooks').insert(mappedData);
-      fetchNotebooks();
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data: any[] = XLSX.utils.sheet_to_json(ws);
+        
+        if (data.length === 0) {
+          alert('Planilha vazia! Verifique o arquivo.');
+          return;
+        }
+
+        // Flexible column mapping: accept PT or EN headers
+        const mappedData = data.map((row: any) => {
+          const code = row['Código'] || row['codigo'] || row['code'] || row['Code'] || row['CODIGO'] || row['CÓDIGO'] || '';
+          const type = row['Tipo'] || row['tipo'] || row['type'] || row['Type'] || row['TIPO'] || 'notebook';
+          
+          // Map Portuguese type names to system values
+          let mappedType = type.toString().toLowerCase().trim();
+          if (mappedType.includes('note') || mappedType.includes('lap')) mappedType = 'notebook';
+          else if (mappedType.includes('mouse') || mappedType.includes('mou')) mappedType = 'mouse';
+          else if (mappedType.includes('carr') || mappedType.includes('charger') || mappedType.includes('fonte')) mappedType = 'charger';
+          else if (mappedType.includes('fone') || mappedType.includes('head') || mappedType.includes('headphone')) mappedType = 'headphones';
+          else mappedType = 'notebook'; // default
+
+          return {
+            id: Math.random().toString(36).substr(2, 9),
+            code: code.toString().trim(),
+            type: mappedType,
+            status: 'available'
+          };
+        }).filter(n => n.code !== ''); // remove rows without code
+
+        if (mappedData.length === 0) {
+          alert('Nenhum código encontrado na planilha.\n\nSua planilha precisa ter uma coluna chamada "Código" (ou "code").\nOpcionalmente pode ter uma coluna "Tipo" (notebook, mouse, charger, headphones).');
+          return;
+        }
+
+        // Filter out duplicates that already exist in the database
+        const existingCodes = notebooks.map(n => n.code);
+        const newItems = mappedData.filter(n => !existingCodes.includes(n.code));
+        const skipped = mappedData.length - newItems.length;
+
+        if (newItems.length === 0) {
+          alert(`Todos os ${mappedData.length} equipamentos da planilha já estão cadastrados no sistema.`);
+          return;
+        }
+
+        // Insert in batches of 50 to avoid timeout
+        let inserted = 0;
+        for (let i = 0; i < newItems.length; i += 50) {
+          const batch = newItems.slice(i, i + 50);
+          const { error } = await supabase.from('notebooks').insert(batch);
+          if (error) {
+            alert(`Erro ao importar lote ${Math.floor(i/50)+1}: ${error.message}`);
+            break;
+          }
+          inserted += batch.length;
+        }
+
+        fetchNotebooks();
+        
+        let msg = `✅ Importação concluída!\n\n📥 ${inserted} equipamentos importados com sucesso.`;
+        if (skipped > 0) msg += `\n⏭️ ${skipped} duplicados ignorados (já existiam).`;
+        alert(msg);
+      } catch (err: any) {
+        alert('Erro ao ler planilha: ' + err.message);
+      }
     };
     reader.readAsBinaryString(file);
+    // Reset input so same file can be re-selected
+    e.target.value = '';
   };
 
   const handleAddRange = async (e: React.FormEvent<HTMLFormElement>) => {
