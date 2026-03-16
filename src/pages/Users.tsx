@@ -252,12 +252,18 @@ export function Users() {
                     onClick={() => {
                       navigator.clipboard.writeText(message);
                       const btn = document.getElementById(`copy-${beneficiary.id}`);
-                      if (btn) { btn.textContent = '✓ Copiado!'; setTimeout(() => { btn.textContent = 'Copiar Msg'; }, 2000); }
+                      if (btn) { btn.textContent = '✓ Copiado!'; setTimeout(() => { btn.textContent = 'Copiar'; }, 2000); }
                     }}
                     className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 text-xs font-bold ${totalItems > 0 ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                   >
                     <Copy size={14} />
-                    <span id={`copy-${beneficiary.id}`}>Copiar Msg</span>
+                    <span id={`copy-${beneficiary.id}`}>Copiar</span>
+                  </button>
+                  <button 
+                    onClick={() => window.open(whatsappUrl, 'whatsapp_monitoria')}
+                    className="py-2.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-green-500 text-white hover:bg-green-600 text-xs font-bold"
+                  >
+                    <MessageCircle size={14} />
                   </button>
                 </div>
               </div>
