@@ -598,8 +598,8 @@ export function Loans() {
           professor_id: selectedRequest.professor_id,
           equipment_codes: preparationItems,
           scheduled_date: selectedRequest.scheduled_date,
-          start_time: selectedRequest.start_time,
-          return_deadline: selectedRequest.return_deadline,
+          start_time: `${selectedRequest.scheduled_date}T${selectedRequest.start_time}:00Z`,
+          return_deadline: selectedRequest.return_deadline ? `${selectedRequest.scheduled_date}T${selectedRequest.return_deadline}:00Z` : null,
           status: 'pending',
           created_by: user?.name
         });
@@ -1067,7 +1067,7 @@ export function Loans() {
             })}
 
             {activeTab === 'solicitacoes' && (teacherRequests || [])
-              .filter(r => r.scheduled_date === new Date().toISOString().split('T')[0] && r.status === 'pending')
+              .filter(r => r.status === 'pending')
               .map((request) => (
               <motion.div 
                 key={request.id}
