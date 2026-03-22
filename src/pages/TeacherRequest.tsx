@@ -79,7 +79,11 @@ export function TeacherRequest() {
   };
 
   const fetchProfessors = async () => {
-    const { data } = await supabase.from('professors').select('id, name').order('name');
+    const { data } = await supabase
+      .from('professors')
+      .select('id, name, type')
+      .or('type.eq.professor,type.eq.colaborador')
+      .order('name');
     if (data) setProfessors(data);
   };
 
