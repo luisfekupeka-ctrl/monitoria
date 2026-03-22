@@ -487,7 +487,7 @@ export function Stock() {
                 quantity: quantity,
                 date: new Date().toISOString(),
                 operator_name: user?.name || 'Monitor',
-                // beneficiaryId is not in stock_movements table yet, but we have product_id
+                beneficiary_name: beneficiary?.name || 'Geral'
               });
               
               if (logError) {

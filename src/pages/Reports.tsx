@@ -25,7 +25,7 @@ export function Reports() {
     const fetchData = async () => {
       const [pRes, lRes, mRes] = await Promise.all([
         supabase.from('products').select('*'),
-        supabase.from('loans').select('*, loan_items(notebook_code)'),
+        supabase.from('loans').select('*, beneficiary:professors(name), loan_items(notebook_code)'),
         supabase.from('stock_movements').select('*')
       ]);
 
@@ -38,6 +38,7 @@ export function Reports() {
         setLoans(lRes.data.map(l => ({
           ...l,
           beneficiaryId: l.beneficiary_id,
+          beneficiaryName: (l as any).beneficiary?.name || l.beneficiary_name || 'N/A',
           loanDate: l.loan_date,
           returnDate: l.return_date,
           operatorId: l.operator_id,
