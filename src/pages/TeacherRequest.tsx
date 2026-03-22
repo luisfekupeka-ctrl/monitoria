@@ -82,7 +82,7 @@ export function TeacherRequest() {
     const { data } = await supabase
       .from('professors')
       .select('id, name, type')
-      .or('type.eq.professor,type.eq.colaborador')
+      .neq('type', 'local')
       .order('name');
     if (data) setProfessors(data);
   };
