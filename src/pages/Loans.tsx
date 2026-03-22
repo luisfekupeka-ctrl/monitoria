@@ -551,7 +551,8 @@ export function Loans() {
   };
 
   const handleRejectRequest = async (request: any) => {
-    if (!confirm(`Rejeitar solicitação de ${request.professor.name} para ${request.equipment_codes.length} itens?`)) return;
+    const totalItems = Object.values(request.requested_items as Record<string, number>).reduce((a, b) => a + b, 0);
+    if (!confirm(`Rejeitar solicitação de ${request.professor?.name || 'Professor'} para ${totalItems} itens?`)) return;
     try {
       const { error } = await supabase.from('teacher_requests')
         .update({ status: 'rejected' })
