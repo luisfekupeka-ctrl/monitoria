@@ -28,6 +28,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { cn, formatDate } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  type: 'alert' | 'info' | 'success';
+  read: boolean;
+}
+
 export function Loans() {
   const { user } = useAuth();
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
@@ -53,6 +62,8 @@ export function Loans() {
   const [returnDeadline, setReturnDeadline] = useState('');
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [alertDismissed, setAlertDismissed] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -66,9 +77,18 @@ export function Loans() {
       const minutes = now.getMinutes();
 
       if (hours === 17 && minutes === 40 && !alertDismissed && activeLoans.length > 0) {
-        // Simple alert for now, can be improved to a modal later
         const nonReturnedNames = activeLoans.map(l => l.beneficiaryName).join(', ');
-        alert(`🚨 ALERTA DE DEVOLUÇÃO (17:40)\nNotebooks ainda não devolvidos com: ${nonReturnedNames}.\nPrazo final: 17:45!`);
+        
+        const newNotify: Notification = {
+          id: Date.now().toString(),
+          title: 'Alerta de Devolução',
+          message: `O prazo de 17:45 está chegando. Notebooks com: ${nonReturnedNames}`,
+          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          type: 'alert',
+          read: false
+        };
+
+        setNotifications(prev => [newNotify, ...prev]);
         setAlertDismissed(true);
       }
       
@@ -119,6 +139,14 @@ export function Loans() {
     if (sRes.data) {
       setSchedules(sRes.data);
     }
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const filteredLoans = (activeLoans || []).filter(loan => {
@@ -519,6 +547,87 @@ export function Loans() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <div className="relative">
+            <button 
+              onClick={() => setIsNotificationMenuOpen(!isNotificationMenuOpen)}
+              className={cn(
+                "size-14 bg-white border border-slate-200 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-50 hover:text-sesi-blue transition-all shadow-md relative",
+                isNotificationMenuOpen && "border-sesi-blue text-sesi-blue"
+              )}
+            >
+              <Bell size={24} />
+              {notifications.some(n => !n.read) && (
+                <span className="absolute top-3 right-3 size-3 bg-rose-500 rounded-full border-2 border-white" />
+              )}
+            </button>
+
+            <AnimatePresence>
+              {isNotificationMenuOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsNotificationMenuOpen(false)} 
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-4 w-96 bg-white rounded-[2rem] shadow-2xl border border-slate-100 p-6 z-50 ring-1 ring-slate-200"
+                  >
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="font-black text-slate-900 tracking-tight">Notificações</h4>
+                      <button 
+                        onClick={markAllAsRead}
+                        className="text-[10px] font-black text-sesi-blue uppercase tracking-widest hover:underline"
+                      >
+                        Marcar todas como lidas
+                      </button>
+                    </div>
+
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                      {notifications.length === 0 ? (
+                        <div className="py-10 text-center text-slate-300">
+                          <Bell size={32} className="mx-auto mb-2 opacity-10" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest">Nenhuma notificação</p>
+                        </div>
+                      ) : (
+                        notifications.map(n => (
+                          <div 
+                            key={n.id}
+                            className={cn(
+                              "p-4 rounded-2xl border transition-all relative group",
+                              n.read ? "bg-slate-50/50 border-slate-100" : "bg-blue-50/50 border-blue-100"
+                            )}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={cn(
+                                "size-8 rounded-xl flex items-center justify-center shrink-0",
+                                n.type === 'alert' ? "bg-rose-100 text-rose-500" : "bg-blue-100 text-blue-500"
+                              )}>
+                                {n.type === 'alert' ? <AlertCircle size={16} /> : <Bell size={16} />}
+                              </div>
+                              <div className="flex-1">
+                                <h5 className="text-xs font-black text-slate-900 mb-1">{n.title}</h5>
+                                <p className="text-[11px] text-slate-500 leading-relaxed">{n.message}</p>
+                                <span className="text-[9px] font-bold text-slate-400 mt-2 block">{n.time}</span>
+                              </div>
+                              <button 
+                                onClick={() => removeNotification(n.id)}
+                                className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-500 transition-all"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button 
             onClick={() => setIsScheduleModalOpen(true)}
             className="group relative flex items-center gap-3 bg-white border border-slate-200 text-slate-900 px-8 py-5 rounded-[2rem] font-black text-sm hover:bg-slate-50 transition-all shadow-lg"
