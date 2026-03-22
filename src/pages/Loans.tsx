@@ -442,12 +442,22 @@ export function Loans() {
     if (!beneficiary) return;
 
     try {
+      // Get current date and local timezone offset correctly
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const offsetMinutes = -now.getTimezoneOffset();
+      const absOffset = Math.abs(offsetMinutes);
+      const hoursOffset = String(Math.floor(absOffset / 60)).padStart(2, '0');
+      const minsOffset = String(absOffset % 60).padStart(2, '0');
+      const sign = offsetMinutes >= 0 ? '+' : '-';
+      const tzOffset = `${sign}${hoursOffset}:${minsOffset}`;
+
       const sbSchedule = {
         id: crypto.randomUUID(),
         professor_id: selectedBeneficiaryId,
         equipment_codes: selectedItems,
-        scheduled_date: new Date().toISOString().split('T')[0],
-        start_time: startTime ? `${new Date().toISOString().split('T')[0]}T${startTime}:00` : new Date().toISOString(),
+        scheduled_date: dateStr,
+        start_time: startTime ? `${dateStr}T${startTime}:00${tzOffset}` : now.toISOString(),
         return_deadline: returnDeadline || null,
         status: 'pending',
         created_by: user?.name
