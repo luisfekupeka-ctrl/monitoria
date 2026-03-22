@@ -56,7 +56,19 @@ export function Loans() {
     ]);
 
     if (pRes.data) setBeneficiaries(pRes.data);
-    if (nRes.data) setNotebooks(nRes.data);
+      if (nRes.data) {
+        const sortedNotebooks = [...nRes.data]
+          .sort((a, b) => {
+            const codeA = (a.code || '').trim().toUpperCase();
+            const codeB = (b.code || '').trim().toUpperCase();
+            return codeA.localeCompare(codeB, undefined, { numeric: true });
+          })
+          .map(n => ({
+            ...n,
+            createdBy: n.created_by
+          }));
+        setNotebooks(sortedNotebooks);
+      }
     if (lRes.data) {
       const mappedLoans = (lRes.data || []).map(l => ({
         ...l,
@@ -177,16 +189,27 @@ export function Loans() {
   };
 
   const handleReturnByCode = async (code: string) => {
-    const loan = activeLoans.find(l => l.items.includes(code));
-    if (!loan) return;
+    const cleanCode = code.trim().toUpperCase();
+    if (!cleanCode) return;
+
+    const loan = activeLoans.find(l => l.items.includes(cleanCode));
+    if (!loan) {
+      setError(`Empréstimo ativo para o equipamento ${cleanCode} não encontrado.`);
+      return;
+    }
 
     try {
-      const nb = notebooks.find(n => n.code === code);
+      const nb = notebooks.find(n => n.code.trim().toUpperCase() === cleanCode);
+      if (!nb) {
+         setError(`Equipamento ${cleanCode} não encontrado no sistema.`);
+         return;
+      }
+
       await supabase.from('notebooks')
         .update({ status: 'available' })
-        .eq('id', nb?.id);
+        .eq('id', nb.id);
 
-      const newItems = loan.items.filter(item => item !== code);
+      const newItems = loan.items.filter(item => item.trim().toUpperCase() !== cleanCode);
       if (newItems.length === 0) {
         await supabase.from('loans')
           .update({ 
@@ -198,7 +221,7 @@ export function Loans() {
         await supabase.from('loan_items')
           .delete()
           .eq('loan_id', loan.id)
-          .eq('notebook_code', code);
+          .eq('notebook_code', cleanCode);
       }
 
       setSuccess(`Equipamento ${code} devolvido com sucesso!`);
@@ -214,7 +237,7 @@ export function Loans() {
     try {
       // Get notebook IDs for the items in this loan
       const notebookIds = loan.items
-        .map(code => notebooks.find(n => n.code === code)?.id)
+        .map(code => notebooks.find(n => n.code.trim().toUpperCase() === code.trim().toUpperCase())?.id)
         .filter(Boolean) as string[];
 
       if (notebookIds.length > 0) {
@@ -302,11 +325,14 @@ export function Loans() {
         }
 
         // Update notebooks status
-        await Promise.all(selectedItems.map(code => {
-          const nb = notebooks.find(n => n.code === code);
-          return supabase.from('notebooks')
-            .update({ status: 'loaned' })
-            .eq('id', nb?.id);
+        await Promise.all(selectedItems.map(async (code) => {
+          const cleanCode = code.trim().toUpperCase();
+          const nb = notebooks.find(n => n.code.trim().toUpperCase() === cleanCode);
+          if (nb) {
+            return supabase.from('notebooks')
+              .update({ status: 'loaned' })
+              .eq('id', nb.id);
+          }
         }));
 
         setSuccess('Empréstimo realizado com sucesso!');
@@ -321,8 +347,14 @@ export function Loans() {
     }
   };
 
-  const availableItems = notebooks.filter(n => n.status === 'available');
-  const filteredAvailableItems = availableItems.filter(n => n.type === activeType);
+  // Filter and sort items for the modal grid using natural sort
+  const modalItems = notebooks
+    .filter(n => n.type === activeType)
+    .sort((a, b) => {
+      const codeA = (a.code || '').trim().toUpperCase();
+      const codeB = (b.code || '').trim().toUpperCase();
+      return codeA.localeCompare(codeB, undefined, { numeric: true });
+    });
 
   return (
     <motion.div 
@@ -398,8 +430,11 @@ export function Loans() {
               placeholder="Devolução via Scanner..."
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  handleReturnByCode((e.target as HTMLInputElement).value);
-                  (e.target as HTMLInputElement).value = '';
+                  const val = (e.target as HTMLInputElement).value;
+                  if (val.trim()) {
+                    handleReturnByCode(val);
+                    (e.target as HTMLInputElement).value = '';
+                  }
                 }
               }}
               className="w-full h-full pl-16 pr-8 py-8 bg-sesi-blue text-white placeholder:text-white/40 border-none rounded-[3rem] text-lg font-black shadow-xl shadow-sesi-blue/30 focus:ring-[12px] focus:ring-sesi-blue/10 transition-all outline-none"
@@ -552,7 +587,7 @@ export function Loans() {
               <div className="size-32 bg-slate-50 rounded-[3rem] flex items-center justify-center mb-8 shadow-xl">
                 <History size={64} className="opacity-10" />
               </div>
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Estoque Monitorado</h3>
+              <h2 className="text-3xl font-black text-slate-900 tracking-tight">Registro de Empréstimos <span className="text-xs font-normal text-slate-400 font-mono">[v2.2]</span></h2>
               <p className="text-sm text-slate-400 mt-2 font-medium">Todos os equipamentos estão disponíveis no momento.</p>
               <button 
                 onClick={() => setIsLoanModalOpen(true)}
@@ -571,7 +606,7 @@ export function Loans() {
           <div className="bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
             <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <h3 className="text-2xl font-black text-slate-900">Novo Empréstimo</h3>
+                <h3 className="text-2xl font-black text-slate-900">Novo Empréstimo <span className="text-sesi-blue bg-sesi-blue/10 px-2 py-0.5 rounded text-xs">[v2.3]</span></h3>
                 <p className="text-sm text-slate-500 font-medium">Selecione a pessoa ou local e os notebooks para saída.</p>
               </div>
               <button 
@@ -683,10 +718,10 @@ export function Loans() {
                                 return item?.type === 'notebook';
                               });
 
-                              const nb = selectedNotebook ? null : filteredAvailableItems[0];
-                              const charger = availableItems.find(n => n.type === 'charger' && !selectedItems.includes(n.code));
-                              const mouse = availableItems.find(n => n.type === 'mouse' && !selectedItems.includes(n.code));
-                              const headphones = availableItems.find(n => n.type === 'headphones' && !selectedItems.includes(n.code));
+                              const nb = selectedNotebook ? null : modalItems.find(n => n.status === 'available' && !selectedItems.includes(n.code));
+                              const charger = notebooks.find(n => n.type === 'charger' && n.status === 'available' && !selectedItems.includes(n.code));
+                              const mouse = notebooks.find(n => n.type === 'mouse' && n.status === 'available' && !selectedItems.includes(n.code));
+                              const headphones = notebooks.find(n => n.type === 'headphones' && n.status === 'available' && !selectedItems.includes(n.code));
                               
                               const newItems = [];
                               if (nb) newItems.push(nb.code);
@@ -711,25 +746,86 @@ export function Loans() {
                         <p className="text-[10px] font-bold text-slate-400 italic">Clique duplo para intervalo</p>
                       </div>
                     </div>
+
+                    {/* Laboratory Quick Selection */}
+                    {activeType === 'notebook' && Array.from(new Set(notebooks.map(n => n.laboratory).filter(Boolean))).length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                        <div className="w-full mb-2">
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Emprestar Laboratório Inteiro</span>
+                        </div>
+                        {Array.from(new Set(notebooks.map(n => n.laboratory).filter(Boolean))).sort().map(lab => {
+                          const labItems = notebooks.filter(n => n.laboratory === lab && n.type === 'notebook');
+                          const availableLabItems = labItems.filter(n => n.status === 'available');
+                          const allLabSelected = availableLabItems.length > 0 && availableLabItems.every(n => selectedItems.includes(n.code));
+                          
+                          if (labItems.length === 0) return null;
+
+                          return (
+                            <button
+                              key={lab}
+                              onClick={() => {
+                                if (allLabSelected) {
+                                  // Deselect all from this lab
+                                  const labCodes = labItems.map(n => n.code);
+                                  setSelectedItems(prev => prev.filter(c => !labCodes.includes(c)));
+                                } else {
+                                  // Select all available from this lab
+                                  const availableCodes = availableLabItems.map(n => n.code);
+                                  setSelectedItems(prev => Array.from(new Set([...prev, ...availableCodes])));
+                                }
+                              }}
+                              className={cn(
+                                "px-4 py-2 rounded-xl text-xs font-black transition-all border shadow-sm flex items-center gap-2",
+                                allLabSelected
+                                  ? "bg-sesi-blue text-white border-sesi-blue shadow-lg scale-105"
+                                  : availableLabItems.length === 0
+                                    ? "bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed"
+                                    : "bg-white border-slate-200 text-slate-600 hover:border-sesi-blue"
+                              )}
+                            >
+                              <Laptop size={14} className={allLabSelected ? "text-sesi-yellow" : "text-slate-400"} />
+                              {lab}
+                              <span className="text-[10px] opacity-60">({availableLabItems.length}/{labItems.length})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 p-5 bg-slate-50 rounded-[2rem] border border-slate-100 max-h-[40vh] overflow-y-auto">
-                      {filteredAvailableItems.map(nb => (
-                        <button
-                          key={nb.id}
-                          onClick={() => toggleGridItem(nb.code)}
-                          onDoubleClick={() => handleDoubleClick(nb.code)}
-                          className={cn(
-                            "py-3 rounded-xl text-[10px] font-black font-mono transition-all border shadow-sm",
-                            rangeStart === nb.code 
-                              ? "bg-sesi-blue text-white border-sesi-blue scale-110 z-10 ring-4 ring-sesi-blue/20"
-                              : selectedItems.includes(nb.code)
-                                ? "bg-sesi-yellow border-amber-400 text-slate-900 scale-105"
-                                : "bg-white border-slate-200 text-slate-500 hover:border-sesi-blue hover:text-sesi-blue"
-                          )}
-                        >
-                          {nb.code}
-                        </button>
-                      ))}
-                      {filteredAvailableItems.length === 0 && (
+                      {modalItems.map(nb => {
+                        const isLoaned = nb.status === 'loaned';
+                        const isSelected = selectedItems.includes(nb.code);
+                        const isRangeStart = rangeStart === nb.code;
+
+                        return (
+                          <button
+                            key={nb.id}
+                            disabled={isLoaned}
+                            onClick={() => !isLoaned && toggleGridItem(nb.code)}
+                            onDoubleClick={() => !isLoaned && handleDoubleClick(nb.code)}
+                            title={isLoaned ? "Este equipamento já está em uso" : ""}
+                            className={cn(
+                              "py-3 rounded-xl text-[10px] font-black font-mono transition-all border shadow-sm relative",
+                              isLoaned
+                                ? "bg-slate-100 border-slate-200 text-slate-300 cursor-not-allowed grayscale"
+                                : isRangeStart
+                                  ? "bg-sesi-blue text-white border-sesi-blue scale-110 z-10 ring-4 ring-sesi-blue/20"
+                                  : isSelected
+                                    ? "bg-sesi-yellow border-amber-400 text-slate-900 scale-105"
+                                    : "bg-white border-slate-200 text-slate-500 hover:border-sesi-blue hover:text-sesi-blue"
+                            )}
+                          >
+                            {nb.code}
+                            {isLoaned && (
+                               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                  <div className="w-full h-[1px] bg-slate-300 -rotate-12 opacity-50" />
+                               </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                      {modalItems.length === 0 && (
                         <div className="col-span-full py-8 text-center text-slate-400 text-xs font-bold italic">
                           Nenhum item deste tipo disponível.
                         </div>

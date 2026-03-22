@@ -25,6 +25,7 @@ export interface Notebook {
   type: 'notebook' | 'mouse' | 'charger' | 'headphones';
   status: 'available' | 'loaned' | 'maintenance';
   createdBy?: string;
+  laboratory?: string;
 }
 
 export type BeneficiaryType = 'professor' | 'collaborator' | 'student' | 'location';

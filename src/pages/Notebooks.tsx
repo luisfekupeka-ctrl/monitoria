@@ -34,7 +34,7 @@ export function Notebooks() {
   const [isRangeModalOpen, setIsRangeModalOpen] = useState(false);
   const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'notebook' | 'mouse' | 'charger' | 'headphones'>('notebook');
+  const [activeTab, setActiveTab] = useState<'all' | 'notebook' | 'mouse' | 'charger' | 'headphones'>('all');
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
@@ -44,10 +44,17 @@ export function Notebooks() {
 
   const fetchNotebooks = async () => {
     const { data } = await supabase.from('notebooks').select('*');
-    if (data) setNotebooks(data.map(n => ({
-      ...n,
-      createdBy: n.created_by
-    })));
+    if (data) {
+      const sortedData = [...data].sort((a, b) => {
+        const codeA = (a.code || '').trim().toUpperCase();
+        const codeB = (b.code || '').trim().toUpperCase();
+        return codeA.localeCompare(codeB, undefined, { numeric: true });
+      });
+      setNotebooks(sortedData.map(n => ({
+        ...n,
+        createdBy: n.created_by
+      })));
+    }
   };
 
   const handleExportExcel = () => {
@@ -90,21 +97,25 @@ export function Notebooks() {
         // Flexible column mapping: accept PT or EN headers
         const mappedData = data.map((row: any) => {
           const code = row['Código'] || row['codigo'] || row['code'] || row['Code'] || row['CODIGO'] || row['CÓDIGO'] || '';
-          const type = row['Tipo'] || row['tipo'] || row['type'] || row['Type'] || row['TIPO'] || 'notebook';
+          // Smart type detection from code prefix
+          let mappedType = row['Tipo'] || row['tipo'] || row['type'] || row['Type'] || row['TIPO'] || '';
+          mappedType = mappedType.toString().toLowerCase().trim();
           
-          // Map Portuguese type names to system values
-          let mappedType = type.toString().toLowerCase().trim();
-          if (mappedType.includes('note') || mappedType.includes('lap')) mappedType = 'notebook';
-          else if (mappedType.includes('mouse') || mappedType.includes('mou')) mappedType = 'mouse';
-          else if (mappedType.includes('carr') || mappedType.includes('charger') || mappedType.includes('fonte')) mappedType = 'charger';
-          else if (mappedType.includes('fone') || mappedType.includes('head') || mappedType.includes('headphone')) mappedType = 'headphones';
+          const codeStr = code.toString().trim().toUpperCase();
+          if (mappedType.includes('note') || mappedType.includes('lap') || codeStr.startsWith('NB')) mappedType = 'notebook';
+          else if (mappedType.includes('mouse') || mappedType.includes('mou') || codeStr.startsWith('M')) mappedType = 'mouse';
+          else if (mappedType.includes('carr') || mappedType.includes('charger') || mappedType.includes('fonte') || codeStr.startsWith('C')) mappedType = 'charger';
+          else if (mappedType.includes('fone') || mappedType.includes('head') || mappedType.includes('headphone') || codeStr.startsWith('F')) mappedType = 'headphones';
           else mappedType = 'notebook'; // default
+
+          const lab = row['Laboratório'] || row['laboratorio'] || row['lab'] || row['Lab'] || row['LABORATÓRIO'] || '';
 
           return {
             id: Math.random().toString(36).substr(2, 9),
             code: code.toString().trim(),
             type: mappedType,
-            status: 'available'
+            status: 'available',
+            laboratory: lab.toString().trim() || null
           };
         }).filter(n => n.code !== ''); // remove rows without code
 
@@ -152,35 +163,61 @@ export function Notebooks() {
   const handleAddRange = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const prefix = formData.get('prefix') as string;
-    const start = Number(formData.get('start'));
-    const end = Number(formData.get('end'));
-    const type = formData.get('type') as any;
-
-    const newItems = [];
-    for (let i = start; i <= end; i++) {
-      newItems.push({
-        code: `${prefix}${i.toString().padStart(2, '0')}`,
-        type,
-        status: 'available'
-      });
+    const prefix = (formData.get('prefix') as string || '').trim();
+    const startRaw = (formData.get('start') as string || '').trim();
+    const endRaw = (formData.get('end') as string || '').trim();
+    
+    const startNum = parseInt(startRaw, 10);
+    const endNum = parseInt(endRaw, 10);
+    
+    if (isNaN(startNum) || isNaN(endNum)) {
+      alert('Por favor, insira números válidos para o início e fim.');
+      return;
     }
 
-    const mappedItems = newItems.map(item => ({
-      ...item,
-      id: Math.random().toString(36).substr(2, 9),
-      created_by: user?.name || 'Monitor'
-    }));
+    const type = formData.get('type') as any;
+
+    // Detect padding from the start input (e.g., if user types "01", padding is 2)
+    const padding = startRaw.length > startNum.toString().length ? startRaw.length : 0;
+
+    const itemsToInsert = [];
+    const existingCodes = notebooks.map(n => (n.code || '').toUpperCase().trim());
+
+    for (let i = startNum; i <= endNum; i++) {
+        const numStr = padding > 0 ? i.toString().padStart(padding, '0') : i.toString();
+        const code = `${prefix}${numStr}`.toUpperCase().trim();
+        
+        // Only add if it doesn't already exist to avoid "messing up" the list
+        if (!existingCodes.includes(code)) {
+            let inferredType = type;
+            const prefixUpper = prefix.toUpperCase();
+            if (prefixUpper === 'NB') inferredType = 'notebook';
+            else if (prefixUpper === 'M') inferredType = 'mouse';
+            else if (prefixUpper === 'C') inferredType = 'charger';
+            else if (prefixUpper === 'F') inferredType = 'headphones';
+
+            itemsToInsert.push({
+                id: Math.random().toString(36).substr(2, 9),
+                code,
+                type: inferredType,
+                status: 'available',
+                created_by: user?.name || 'Monitor',
+                laboratory: formData.get('laboratory') as string || null
+            });
+        }
+    }
+
+    if (itemsToInsert.length === 0) {
+        alert('Todos os equipamentos neste intervalo já estão cadastrados.');
+        setIsRangeModalOpen(false);
+        return;
+    }
     
     try {
-      let { error } = await supabase.from('notebooks').insert(mappedItems);
+      let { error } = await supabase.from('notebooks').insert(itemsToInsert);
       
       if (error && error.message.includes('created_by')) {
-        console.warn('Fallback: Coluna created_by não encontrada. Inserindo sem ela.');
-        const fallbackItems = newItems.map(item => ({
-          ...item,
-          id: Math.random().toString(36).substr(2, 9)
-        }));
+        const fallbackItems = itemsToInsert.map(({ created_by, ...rest }) => rest);
         const { error: fallbackError } = await supabase.from('notebooks').insert(fallbackItems);
         if (fallbackError) throw fallbackError;
       } else if (error) {
@@ -189,6 +226,7 @@ export function Notebooks() {
       
       setIsRangeModalOpen(false);
       fetchNotebooks();
+      alert(`${itemsToInsert.length} novos equipamentos gerados com sucesso!`);
     } catch (err: any) {
       alert('Erro ao cadastrar intervalo: ' + err.message);
     }
@@ -199,10 +237,14 @@ export function Notebooks() {
       const code = n.code || '';
       const matchesSearch = code.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = !statusFilter || n.status === statusFilter;
-      const matchesTab = n.type === activeTab;
+      const matchesTab = activeTab === 'all' || n.type === activeTab;
       return matchesSearch && matchesStatus && matchesTab;
     })
-    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
+    .sort((a, b) => {
+      const codeA = (a.code || '').trim().toUpperCase();
+      const codeB = (b.code || '').trim().toUpperCase();
+      return codeA.localeCompare(codeB, undefined, { numeric: true });
+    });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -221,7 +263,7 @@ export function Notebooks() {
     >
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Gestão de Equipamentos</h2>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Gestão de Equipamentos <span className="text-xs font-normal text-slate-400 font-mono">[v2.3]</span></h2>
           <p className="text-slate-500 mt-1">Controle individual de notebooks, mouses, carregadores e fones.</p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -260,8 +302,33 @@ export function Notebooks() {
         </div>
       </div>
 
-      {/* Quick Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          onClick={() => setActiveTab('all')}
+          className={cn(
+            "p-4 rounded-2xl border transition-all cursor-pointer group",
+            activeTab === 'all' 
+              ? "bg-white border-sesi-blue shadow-md ring-2 ring-sesi-blue/10" 
+              : "bg-white border-slate-200 hover:border-slate-300 shadow-sm"
+          )}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-xl text-white bg-slate-900">
+              <Plus size={20} />
+            </div>
+            <span className="text-xs font-bold text-slate-400 group-hover:text-sesi-blue transition-colors">Total</span>
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-slate-500">Tudo</h4>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-900">{notebooks.length}</span>
+              <span className="text-xs font-bold text-slate-400">Total</span>
+            </div>
+          </div>
+        </motion.div>
+
         {[
           { id: 'notebook', label: 'Notebooks', icon: Laptop, color: 'bg-blue-500' },
           { id: 'mouse', label: 'Mouses', icon: Mouse, color: 'bg-purple-500' },
@@ -303,8 +370,19 @@ export function Notebooks() {
         })}
       </div>
 
-      {/* Category Tabs */}
-      <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+      <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit overflow-x-auto max-w-full">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={cn(
+            "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
+            activeTab === 'all' 
+              ? "bg-white text-sesi-blue shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          )}
+        >
+          <div className="size-4 rounded-full bg-slate-900" />
+          Todos
+        </button>
         {[
           { id: 'notebook', label: 'Notebooks', icon: Laptop },
           { id: 'mouse', label: 'Mouses', icon: Mouse },
@@ -366,8 +444,9 @@ export function Notebooks() {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Código</th>
+               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Código</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Laboratório</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registrado por</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
@@ -384,10 +463,11 @@ export function Notebooks() {
                   exit={{ opacity: 0 }}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                <td className="px-6 py-4">
+                 <td className="px-6 py-4">
                   <span className="font-mono font-bold text-sm text-slate-900">{notebook.code}</span>
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600 capitalize">{notebook.type}</td>
+                <td className="px-6 py-4 text-sm text-slate-600">{notebook.laboratory || '-'}</td>
                 <td className="px-6 py-4">
                   {getStatusBadge(notebook.status)}
                 </td>
@@ -536,14 +616,32 @@ export function Notebooks() {
                 <label className="text-sm font-semibold text-slate-700">Código</label>
                 <input name="code" defaultValue={editingNotebook?.code} required autoFocus placeholder="Ex: NB01" className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Tipo</label>
-                <select name="type" defaultValue={editingNotebook?.type || activeTab} className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none">
+               <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Tipo (Auto-detectado pelo prefixo)</label>
+                <select name="type" 
+                  defaultValue={editingNotebook?.type || (activeTab === 'all' ? 'notebook' : activeTab)} 
+                  className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none"
+                >
                   <option value="notebook">Notebook</option>
                   <option value="mouse">Mouse</option>
                   <option value="charger">Carregador</option>
                   <option value="headphones">Fone de Ouvido</option>
                 </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Laboratório (Opcional)</label>
+                <input 
+                  name="laboratory" 
+                  list="lab-list"
+                  defaultValue={editingNotebook?.laboratory} 
+                  placeholder="Ex: Lab A, Lab B..." 
+                  className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" 
+                />
+                <datalist id="lab-list">
+                  {Array.from(new Set(notebooks.map(n => n.laboratory).filter(Boolean))).map(lab => (
+                    <option key={lab} value={lab} />
+                  ))}
+                </datalist>
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all">
@@ -614,12 +712,16 @@ export function Notebooks() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Início</label>
-                  <input name="start" type="number" required className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
+                  <input name="start" type="text" placeholder="Ex: 01 ou 1" required className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Fim</label>
-                  <input name="end" type="number" required className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
+                  <input name="end" type="text" placeholder="Ex: 10" required className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Laboratório</label>
+                <input name="laboratory" placeholder="Ex: Lab A" className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Tipo</label>
