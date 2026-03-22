@@ -115,7 +115,7 @@ export default function TeacherRequest() {
       return;
     }
 
-    const hasItems = Object.values(requestedItems).some(q => q > 0);
+    const hasItems = Object.values(requestedItems).some(q => (Number(q)) > 0);
     if (!hasItems) {
       setError('Selecione pelo menos um item.');
       return;

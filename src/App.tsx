@@ -11,7 +11,7 @@ import { Loans } from './pages/Loans';
 import { Users } from './pages/Users';
 import { Reports } from './pages/Reports';
 import { AdminManagement } from './pages/AdminManagement';
-import { TeacherRequest } from './pages/TeacherRequest';
+import TeacherRequest from './pages/TeacherRequest';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
