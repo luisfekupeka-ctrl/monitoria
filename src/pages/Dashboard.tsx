@@ -14,6 +14,8 @@ import { motion } from 'motion/react';
 import { Product, Loan, Notebook } from '../types';
 import { cn, formatDate } from '../lib/utils';
 import { supabase } from '../lib/supabase';
+import { QRCodeSVG } from 'qrcode.react';
+import { Bell, Copy, Check as CheckIcon } from 'lucide-react';
 
 export function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -261,6 +263,75 @@ export function Dashboard() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+      {/* QR Code and Quick Actions Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-12">
+        {/* QR Code Card */}
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="bg-white rounded-[3rem] border border-slate-200 shadow-xl p-10 flex flex-col items-center text-center group"
+        >
+          <div className="size-16 bg-sesi-blue/10 text-sesi-blue rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <Bell size={32} />
+          </div>
+          <h3 className="text-xl font-black text-slate-900 tracking-tight mb-2">Portal do Professor</h3>
+          <p className="text-sm text-slate-500 font-medium mb-8">
+            Aponte a câmera para abrir o formulário de solicitações.
+          </p>
+          
+          <div className="p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 flex items-center justify-center mb-8 shadow-inner">
+            <QRCodeSVG 
+              value={`${window.location.origin}/request`} 
+              size={180}
+              level="H"
+              includeMargin={false}
+              className="rounded-xl"
+            />
+          </div>
+
+          <div className="w-full space-y-3">
+             <button 
+               onClick={() => {
+                 navigator.clipboard.writeText(`${window.location.origin}/request`);
+                 alert('Link copiado para a área de transferência!');
+               }}
+               className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-3 active:scale-95"
+             >
+               <Copy size={16} />
+               Copiar Link
+             </button>
+             <Link 
+               to="/request" 
+               target="_blank"
+               className="w-full py-4 bg-white text-slate-400 border border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-3"
+             >
+               Ver Site →
+             </Link>
+          </div>
+        </motion.div>
+
+        {/* System Health / Info Card */}
+        <div className="lg:col-span-2 space-y-8 flex flex-col">
+           <div className="bg-slate-900 rounded-[3rem] p-10 flex-1 relative overflow-hidden group">
+              <div className="absolute -right-20 -top-20 size-64 bg-sesi-blue/20 rounded-full blur-3xl group-hover:bg-sesi-blue/30 transition-all" />
+              <div className="relative z-10">
+                <span className="px-4 py-1.5 bg-sesi-blue/20 text-sesi-blue rounded-full text-[10px] font-black uppercase tracking-widest">Dica da Monitoria</span>
+                <h3 className="text-2xl font-black text-white mt-4 leading-tight max-w-xs">
+                  Economize tempo preparando os kits antecipadamente.
+                </h3>
+                <p className="text-slate-400 text-sm mt-4 leading-relaxed max-w-sm">
+                  Utilize a aba "Solicitações" na página de Empréstimos para ver o que os professores pediram via QR Code.
+                </p>
+                <Link 
+                  to="/emprestimos"
+                  className="inline-flex items-center gap-3 mt-8 text-sesi-yellow font-black text-xs uppercase tracking-widest hover:gap-5 transition-all text-sm"
+                >
+                  ACESSAR SOLICITAÇÕES <Plus size={18} />
+                </Link>
+              </div>
+           </div>
         </div>
       </div>
     </motion.div>
