@@ -14,7 +14,8 @@ import {
   Plus,
   Send,
   AlertCircle,
-  Calendar
+  Calendar,
+  Phone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -35,8 +36,16 @@ const EQUIPMENT_TYPES: EquipmentItem[] = [
 ];
 
 export default function TeacherRequest() {
-  const [professors, setProfessors] = useState<{ id: string, name: string }[]>([]);
+  const [professors, setProfessors] = useState<{ id: string, name: string, type: string, phone?: string }[]>([]);
   const [selectedProfessorId, setSelectedProfessorId] = useState('');
+  
+  // 2FA states
+  const [phoneInput, setPhoneInput] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [isCodeSent, setIsCodeSent] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+
   const [requestedItems, setRequestedItems] = useState<Record<string, number>>({
     notebook: 0,
     mouse: 0,
@@ -102,10 +111,24 @@ export default function TeacherRequest() {
   const fetchProfessors = async () => {
     const { data } = await supabase
       .from('professors')
-      .select('id, name, type')
-      .neq('type', 'local')
+      .select('id, name, type, phone')
+      .in('type', ['professor', 'collaborator'])
       .order('name');
     if (data) setProfessors(data);
+  };
+
+  const handleProfessorSelect = (id: string) => {
+    setSelectedProfessorId(id);
+    setIsVerified(false);
+    setIsCodeSent(false);
+    setVerificationCode('');
+    setGeneratedCode(null);
+    const prof = professors.find(p => p.id === id);
+    if (prof && prof.phone) {
+      setPhoneInput(prof.phone);
+    } else {
+      setPhoneInput('');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -148,6 +171,13 @@ export default function TeacherRequest() {
         });
 
       if (insertError) throw insertError;
+
+      // Update phone if it was newly added
+      const prof = professors.find(p => p.id === selectedProfessorId);
+      if (prof && !prof.phone && phoneInput) {
+        await supabase.from('professors').update({ phone: phoneInput }).eq('id', selectedProfessorId);
+      }
+
       setIsSuccess(true);
     } catch (err: any) {
       console.error(err);
@@ -245,7 +275,7 @@ export default function TeacherRequest() {
           </label>
           <select 
             value={selectedProfessorId}
-            onChange={(e) => setSelectedProfessorId(e.target.value)}
+            onChange={(e) => handleProfessorSelect(e.target.value)}
             className="w-full h-16 px-6 bg-slate-800 border-2 border-slate-700 rounded-2xl focus:border-blue-500 outline-none transition-all font-bold text-slate-200 appearance-none"
           >
             <option value="">Selecione seu nome</option>
@@ -255,7 +285,124 @@ export default function TeacherRequest() {
           </select>
         </section>
 
-        {/* Destination Field */}
+        {/* 2FA Verification */}
+        <AnimatePresence>
+          {selectedProfessorId && !isVerified && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-slate-800/80 p-6 md:p-8 rounded-[2rem] border border-blue-500/30 shadow-xl space-y-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="size-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-500">
+                    <Phone size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Confirmação de Identidade</h2>
+                    <p className="text-xs font-medium text-blue-400 uppercase tracking-widest">Segurança</p>
+                  </div>
+                </div>
+                
+                {!isCodeSent ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                      {professors.find(p => p.id === selectedProfessorId)?.phone
+                        ? "Confirme seu número de WhatsApp para receber o código de acesso."
+                        : "Parece que é seu primeiro acesso! Cadastre seu WhatsApp (com DDD) para receber o código."}
+                    </p>
+                    <input
+                      type="tel"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      placeholder="(11) 99999-9999"
+                      className="w-full bg-slate-900 border-2 border-slate-700 text-white rounded-2xl px-5 py-4 focus:border-blue-500 outline-none font-bold text-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const numericPhone = phoneInput.replace(/\D/g, '');
+                        if (numericPhone.length < 10) {
+                          setError("Digite um número de celular válido com DDD.");
+                          return;
+                        }
+                        setError(null);
+                        const code = Math.floor(1000 + Math.random() * 9000).toString();
+                        setGeneratedCode(code);
+                        setIsCodeSent(true);
+                        alert(`[SIMULAÇÃO SMS/WHATSAPP] 📲\n\nMonitoria SESI:\nSeu código de acesso é: ${code}\n\n(Esta é uma simulação para fins de teste. Para enviar mensagens reais é necessária integração com serviços pagos API).`);
+                      }}
+                      className="w-full py-4 bg-sesi-blue hover:bg-blue-600 text-white font-black text-lg rounded-2xl transition-all active:scale-95"
+                    >
+                      Receber Código
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                      Enviamos um código de <strong className="text-white">4 dígitos</strong> para <strong className="text-white">{phoneInput}</strong>.
+                    </p>
+                    <input
+                      type="text"
+                      value={verificationCode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                        setVerificationCode(val);
+                        if (val.length === 4) {
+                           if (val === generatedCode) {
+                             setIsVerified(true);
+                             setError(null);
+                           } else {
+                             setError("Código incorreto. Tente novamente.");
+                           }
+                        }
+                      }}
+                      placeholder="0000"
+                      maxLength={4}
+                      className="w-full text-center tracking-[1em] font-mono text-3xl bg-slate-900 border-2 border-slate-700 text-white rounded-2xl px-5 py-4 focus:border-emerald-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (verificationCode === generatedCode) {
+                          setIsVerified(true);
+                          setError(null);
+                        } else {
+                          setError("Código incorreto. Tente novamente.");
+                        }
+                      }}
+                      disabled={verificationCode.length !== 4}
+                      className="w-full py-4 bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 hover:bg-emerald-600 text-white font-black text-lg rounded-2xl transition-all active:scale-95"
+                    >
+                      Confirmar Código
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCodeSent(false);
+                        setVerificationCode('');
+                      }}
+                      className="w-full py-2 text-slate-400 hover:text-white text-sm font-bold transition-all text-center"
+                    >
+                      Voltar ou reenviar código
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {isVerified && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="space-y-6 md:space-y-8"
+            >
+              {/* Destination Field */}
         <section className="space-y-4">
           <label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
             <ChevronRight size={14} className="text-sesi-orange" />
@@ -457,6 +604,9 @@ export default function TeacherRequest() {
             </>
           )}
         </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </form>
 
       <div className="mt-12 text-center px-8">
