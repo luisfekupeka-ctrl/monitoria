@@ -864,7 +864,6 @@ export function Loans() {
           )}
         </div>
       </div>
-      </div>
 
       {/* Loan Modal */}
       {isLoanModalOpen && (
