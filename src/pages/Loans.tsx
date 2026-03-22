@@ -65,6 +65,7 @@ export function Loans() {
   const [preparationItems, setPreparationItems] = useState<string[]>([]);
   const [activePreparationType, setActivePreparationType] = useState<string>('notebook');
   const [returnDeadline, setReturnDeadline] = useState('');
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -881,9 +882,17 @@ export function Loans() {
               {activeTab === 'ativos' ? 'Fluxo de Saída' : activeTab === 'agendamentos' ? 'Agendamentos' : activeTab === 'solicitacoes' ? 'Solicitações de Professores' : 'Histórico de Registros'}
             </h2>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+             {activeTab === 'agendamentos' && (
+               <input 
+                 type="date"
+                 value={selectedScheduleDate}
+                 onChange={(e) => setSelectedScheduleDate(e.target.value)}
+                 className="px-4 py-2 bg-white border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm outline-none focus:ring-2 focus:ring-sesi-blue/20"
+               />
+             )}
              <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
-               {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? schedules.length : activeTab === 'solicitacoes' ? teacherRequests.length : history.length} Registros
+               {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? (schedules || []).filter((s: any) => s.scheduled_date === selectedScheduleDate).length : activeTab === 'solicitacoes' ? teacherRequests.length : history.length} Registros
              </span>
           </div>
         </div>
@@ -993,7 +1002,7 @@ export function Loans() {
               );
             })}
 
-            {activeTab === 'agendamentos' && (schedules || []).map((schedule) => {
+            {activeTab === 'agendamentos' && (schedules || []).filter((s: any) => s.scheduled_date === selectedScheduleDate).map((schedule) => {
               const prof = beneficiaries.find(b => b.id === schedule.professor_id);
               return (
                 <motion.div 
@@ -1002,53 +1011,55 @@ export function Loans() {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  className="bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-slate-200/60 p-8 hover:border-amber-400/40 transition-all group"
+                  className="bg-white rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-100 shadow-xl md:shadow-2xl shadow-slate-200/60 p-6 md:p-8 hover:border-amber-400/40 transition-all group"
                 >
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center justify-between mb-4 md:mb-6">
                     <div className="flex items-center gap-4">
-                      <div className="size-14 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
-                        <Calendar size={28} />
+                      <div className="size-12 md:size-14 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
+                        <Calendar size={24} md:size={28} />
                       </div>
                       <div>
-                        <h4 className="font-black text-slate-900 tracking-tight leading-none">{prof?.name || 'Professor'}</h4>
-                        <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Agendado para Hoje</p>
+                        <h4 className="font-black text-slate-900 tracking-tight leading-none text-base md:text-lg">{prof?.name || 'Professor'}</h4>
+                        <p className="text-[9px] md:text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                          {schedule.scheduled_date === new Date().toISOString().split('T')[0] ? 'Agendado para Hoje' : `Agendado para ${formatDate(schedule.scheduled_date)}`}
+                        </p>
                       </div>
                     </div>
-                    <div className="px-3 py-1 bg-amber-100 text-amber-600 rounded-lg text-[10px] font-black uppercase">Pendente</div>
+                    <div className="px-2 md:px-3 py-1 bg-amber-100 text-amber-600 rounded-lg text-[9px] md:text-[10px] font-black uppercase">Pendente</div>
                   </div>
                   
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between text-xs">
+                  <div className="space-y-3 md:space-y-4">
+                    <div className="flex items-center justify-between text-[10px] md:text-xs">
                        <span className="font-bold text-slate-400 uppercase tracking-widest">Horário</span>
                        <span className="font-black text-slate-900">{schedule.start_time ? new Date(schedule.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-[10px] md:text-xs">
                        <span className="font-bold text-slate-400 uppercase tracking-widest">Equipamentos</span>
                        <span className="font-black text-sesi-blue">{schedule.equipment_codes?.length || 0} Itens</span>
                     </div>
                   </div>
 
-                  <div className="mt-6 flex flex-wrap gap-2">
+                  <div className="mt-6 flex flex-wrap gap-1.5 md:gap-2">
                     {schedule.equipment_codes?.slice(0, 3).map((code: string) => (
-                      <span key={code} className="px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-black font-mono">{code}</span>
+                      <span key={code} className="px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[9px] md:text-[10px] font-black font-mono">{code}</span>
                     ))}
                     {(schedule.equipment_codes?.length || 0) > 3 && (
                       <span className="px-2 py-1 bg-slate-50 text-slate-400 rounded-lg text-[10px] font-bold">+{schedule.equipment_codes.length - 3}</span>
                     )}
                   </div>
 
-                  <div className="mt-8 flex gap-3">
+                  <div className="mt-8 flex gap-2 md:gap-3">
                     <button 
                       onClick={() => handleStartSchedule(schedule)}
-                      className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black hover:bg-sesi-blue transition-all"
+                      className="flex-1 py-3 md:py-4 bg-slate-900 text-white rounded-2xl text-[9px] md:text-[10px] font-black hover:bg-sesi-blue transition-all shadow-lg shadow-slate-900/10"
                     >
                       INICIAR AGORA
                     </button>
                     <button 
                       onClick={() => handleDeleteSchedule(schedule.id)}
-                      className="p-3 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all"
+                      className="size-12 md:size-14 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center shrink-0"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={16} md:size={20} />
                     </button>
                   </div>
                 </motion.div>
@@ -1090,14 +1101,26 @@ export function Loans() {
                   <div className="flex items-center justify-between text-xs">
                      <span className="font-bold text-slate-400 uppercase tracking-widest">Data/Hora</span>
                      <span className="font-black text-slate-900">
-                       {formatDate(request.scheduled_date)} • {request.start_time?.slice(0, 5)}
+                       {formatDate(request.scheduled_date)} • {request.start_time}
                      </span>
                   </div>
+                  {request.destination && (
+                    <div className="flex items-center justify-between text-xs">
+                       <span className="font-bold text-slate-400 uppercase tracking-widest">Destino</span>
+                       <span className="font-black text-sesi-orange truncate max-w-[150px]">{request.destination}</span>
+                    </div>
+                  )}
+                  {request.observations && (
+                    <div className="mt-2 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Observação</span>
+                      <p className="text-[10px] text-slate-600 leading-normal font-bold italic">"{request.observations}"</p>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens Solicitados</span>
                     <div className="flex flex-wrap gap-2">
                       {Object.keys(request.requested_items).map(type => {
-                        const qty = request.requested_items[type];
+                        const qty = (request.requested_items as any)[type];
                         if (qty === 0) return null;
                         return (
                           <div key={type} className="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center gap-2">
@@ -1559,21 +1582,47 @@ export function Loans() {
               <div className="flex-1 flex overflow-hidden">
                 {/* Left side: Item Selection */}
                 <div className="w-2/3 p-12 overflow-y-auto custom-scrollbar border-r border-slate-50">
-                  <div className="flex gap-4 mb-8">
-                    {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => setActivePreparationType(type)}
-                        className={cn(
-                          "px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all",
-                          activePreparationType === type 
-                            ? "bg-sesi-blue text-white shadow-lg shadow-sesi-blue/20" 
-                            : "bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                        )}
-                      >
-                        {type}s ({(selectedRequest.requested_items as any)[type]})
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex gap-4">
+                      {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setActivePreparationType(type)}
+                          className={cn(
+                            "px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all",
+                            activePreparationType === type 
+                              ? "bg-sesi-blue text-white shadow-lg shadow-sesi-blue/20" 
+                              : "bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                          )}
+                        >
+                          {type}s ({(selectedRequest.requested_items as any)[type]})
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        const requestedQty = (selectedRequest.requested_items as any)[activePreparationType] || 0;
+                        const currentlySelectedCount = preparationItems.filter(code => {
+                          const item = notebooks.find(n => n.code === code);
+                          return item?.type === activePreparationType;
+                        }).length;
+                        
+                        const qtyToSelect = Math.max(0, requestedQty - currentlySelectedCount);
+                        
+                        if (qtyToSelect <= 0) return;
+
+                        const available = notebooks
+                          .filter(n => n.type === activePreparationType && n.status === 'available' && !preparationItems.includes(n.code))
+                          .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true}))
+                          .slice(0, qtyToSelect);
+                        
+                        setPreparationItems(prev => [...prev, ...available.map(n => n.code)]);
+                      }}
+                      className="px-6 py-3 bg-sesi-orange text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-sesi-orange/20 hover:scale-105 transition-all"
+                    >
+                      Selecionar Automático
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-4 gap-4">
@@ -1584,29 +1633,46 @@ export function Loans() {
                         <button
                           key={item.id}
                           onClick={() => {
-                            if (preparationItems.includes(item.code)) {
-                              setPreparationItems(prev => prev.filter(c => c !== item.code));
+                            if (rangeStart) {
+                              const availableForCurrentType = notebooks
+                                .filter(n => n.type === activePreparationType && n.status === 'available')
+                                .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}));
+                              const allCodes = availableForCurrentType.map(n => n.code);
+                              const startIndex = allCodes.indexOf(rangeStart);
+                              const endIndex = allCodes.indexOf(item.code);
+                              const start = Math.min(startIndex, endIndex);
+                              const end = Math.max(startIndex, endIndex);
+                              const rangeCodes = allCodes.slice(start, end + 1);
+                              setPreparationItems(prev => Array.from(new Set([...prev, ...rangeCodes])));
+                              setRangeStart(null);
                             } else {
-                              setPreparationItems(prev => [...prev, item.code]);
+                              if (preparationItems.includes(item.code)) {
+                                setPreparationItems(prev => prev.filter(c => c !== item.code));
+                              } else {
+                                setPreparationItems(prev => [...prev, item.code]);
+                              }
                             }
                           }}
+                          onDoubleClick={() => setRangeStart(item.code)}
                           className={cn(
-                            "group p-4 rounded-3xl border-2 transition-all text-left",
+                            "group p-3 md:p-4 rounded-2xl md:rounded-3xl border-2 transition-all text-left",
                             preparationItems.includes(item.code)
                               ? "bg-sesi-blue border-sesi-blue text-white shadow-xl shadow-sesi-blue/20"
-                              : "bg-white border-slate-100 hover:border-sesi-blue/50 text-slate-600"
+                              : rangeStart === item.code
+                                ? "border-sesi-blue ring-4 ring-sesi-blue/10 scale-105 z-10"
+                                : "bg-white border-slate-100 hover:border-sesi-blue/50 text-slate-600"
                           )}
                         >
                           <div className={cn(
-                            "size-10 rounded-xl mb-3 flex items-center justify-center transition-colors",
+                            "size-8 md:size-10 rounded-xl mb-2 md:mb-3 flex items-center justify-center transition-colors",
                             preparationItems.includes(item.code) ? "bg-white/20" : "bg-slate-50 group-hover:bg-sesi-blue/10"
                           )}>
-                            {item.type === 'notebook' && <Laptop size={18} />}
-                            {item.type === 'mouse' && <Mouse size={18} />}
-                            {item.type === 'charger' && <Zap size={18} />}
-                            {item.type === 'headphones' && <Headphones size={18} />}
+                            {item.type === 'notebook' && <Laptop size={16} md:size={18} />}
+                            {item.type === 'mouse' && <Mouse size={16} md:size={18} />}
+                            {item.type === 'charger' && <Zap size={16} md:size={18} />}
+                            {item.type === 'headphones' && <Headphones size={16} md:size={18} />}
                           </div>
-                          <div className="font-black text-sm tracking-tight">{item.code}</div>
+                          <div className="font-black text-[10px] md:text-sm tracking-tight">{item.code}</div>
                         </button>
                       ))}
                   </div>
