@@ -57,8 +57,13 @@ export function Loans() {
    const [rangeStart, setRangeStart] = useState<string | null>(null);
   
   // New States for Advanced Features
-  const [activeTab, setActiveTab] = useState<'ativos' | 'agendamentos' | 'historico'>('ativos');
+  const [activeTab, setActiveTab] = useState<'ativos' | 'agendamentos' | 'historico' | 'solicitacoes'>('ativos');
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [teacherRequests, setTeacherRequests] = useState<any[]>([]);
+  const [isPrepareModalOpen, setIsPrepareModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [preparationItems, setPreparationItems] = useState<string[]>([]);
+  const [activePreparationType, setActivePreparationType] = useState<string>('notebook');
   const [returnDeadline, setReturnDeadline] = useState('');
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [alertDismissed, setAlertDismissed] = useState(false);
@@ -101,11 +106,12 @@ export function Loans() {
   }, [activeLoans, alertDismissed]);
 
   const fetchData = async () => {
-     const [pRes, nRes, lRes, sRes] = await Promise.all([
+     const [pRes, nRes, lRes, sRes, trRes] = await Promise.all([
       supabase.from('professors').select('*'),
       supabase.from('notebooks').select('*'),
       supabase.from('loans').select('*, loan_items(notebook_code)'),
-      supabase.from('schedules').select('*')
+      supabase.from('schedules').select('*'),
+      supabase.from('teacher_requests').select('*, professor:professors(name)')
     ]);
 
     if (pRes.data) setBeneficiaries(pRes.data);
@@ -139,6 +145,9 @@ export function Loans() {
     }
     if (sRes.data) {
       setSchedules(sRes.data);
+    }
+    if (trRes.data) {
+      setTeacherRequests(trRes.data);
     }
   };
 
@@ -525,6 +534,85 @@ export function Loans() {
     }
   };
 
+  const handleApproveRequest = async (request: any) => {
+    if (!confirm(`Aprovar solicitação de ${request.professor.name} para ${request.equipment_codes.length} itens?`)) return;
+    try {
+      const { error } = await supabase.from('teacher_requests')
+        .update({ status: 'approved' })
+        .eq('id', request.id);
+      if (error) throw error;
+      setSuccess('Solicitação aprovada!');
+      addNotification('Solicitação Aprovada', `A solicitação de ${request.professor.name} foi aprovada.`, 'success');
+      fetchData();
+    } catch (err: any) {
+      setError('Erro ao aprovar solicitação: ' + err.message);
+    }
+  };
+
+  const handleRejectRequest = async (request: any) => {
+    if (!confirm(`Rejeitar solicitação de ${request.professor.name} para ${request.equipment_codes.length} itens?`)) return;
+    try {
+      const { error } = await supabase.from('teacher_requests')
+        .update({ status: 'rejected' })
+        .eq('id', request.id);
+      if (error) throw error;
+      setSuccess('Solicitação rejeitada!');
+      addNotification('Solicitação Rejeitada', `A solicitação de ${request.professor.name} foi rejeitada.`, 'alert');
+      fetchData();
+    } catch (err: any) {
+      setError('Erro ao rejeitar solicitação: ' + err.message);
+    }
+  };
+
+  const handleOpenPrepare = (request: any) => {
+    setSelectedRequest(request);
+    setPreparationItems([]);
+    
+    // Set first available requested type as active
+    const hasItems = Object.values(request.requested_items as Record<string, number>).some(q => q > 0);
+    const types = Object.keys(request.requested_items).filter(k => request.requested_items[k] > 0);
+    if (types.length > 0) setActivePreparationType(types[0]);
+    
+    setIsPrepareModalOpen(true);
+  };
+
+  const handleConfirmPrepare = async () => {
+    if (!selectedRequest) return;
+    
+    const requiredTotal = Object.values(selectedRequest.requested_items as Record<string, number>).reduce((a, b) => a + b, 0);
+    if (preparationItems.length < requiredTotal) {
+      if (!confirm(`Você selecionou apenas ${preparationItems.length} de ${requiredTotal} itens. Deseja continuar mesmo assim?`)) return;
+    }
+
+    try {
+      // 1. Update request status
+      const { error: uError } = await supabase.from('teacher_requests')
+        .update({ status: 'prepared' })
+        .eq('id', selectedRequest.id);
+      if (uError) throw uError;
+
+      // 2. Create standard schedule
+      const { error: sError } = await supabase.from('schedules')
+        .insert({
+          professor_id: selectedRequest.professor_id,
+          equipment_codes: preparationItems,
+          scheduled_date: selectedRequest.scheduled_date,
+          start_time: selectedRequest.start_time,
+          return_deadline: selectedRequest.return_deadline,
+          status: 'pending',
+          created_by: user?.name
+        });
+      if (sError) throw sError;
+
+      setSuccess('Solicitação preparada e movida para agendamentos!');
+      addNotification('Solicitação Preparada', `O kit para ${selectedRequest.professor.name} está pronto.`, 'success');
+      setIsPrepareModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      setError('Erro ao preparar solicitação: ' + err.message);
+    }
+  };
+
   // Filter and sort items for the modal grid using natural sort
   const modalItems = notebooks
     .filter(n => n.type === activeType)
@@ -675,13 +763,14 @@ export function Loans() {
         {[
           { id: 'ativos', label: 'Empréstimos Ativos', icon: ArrowDownCircle, color: 'text-sesi-blue' },
           { id: 'agendamentos', label: 'Agendamentos', icon: Calendar, color: 'text-amber-500' },
-          { id: 'historico', label: 'Histórico', icon: History, color: 'text-slate-500' }
+          { id: 'historico', label: 'Histórico', icon: History, color: 'text-slate-500' },
+          { id: 'solicitacoes', label: 'Solicitações', icon: Bell, color: 'text-rose-500' }
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              "flex items-center gap-3 px-8 py-4 rounded-[2rem] text-sm font-black transition-all",
+              "flex items-center gap-3 px-8 py-4 rounded-[2rem] text-sm font-black transition-all relative",
               activeTab === tab.id 
                 ? "bg-white text-slate-900 shadow-xl shadow-slate-200/50 scale-105"
                 : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
@@ -689,6 +778,11 @@ export function Loans() {
           >
             <tab.icon size={18} className={activeTab === tab.id ? tab.color : 'text-slate-400'} />
             {tab.label}
+            {tab.id === 'solicitacoes' && teacherRequests.filter(r => r.status === 'pending').length > 0 && (
+              <span className="absolute -top-1 -right-1 size-5 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white animate-pulse">
+                {teacherRequests.filter(r => r.status === 'pending').length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -784,12 +878,12 @@ export function Loans() {
               <ArrowDownCircle size={20} />
             </div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              {activeTab === 'ativos' ? 'Fluxo de Saída' : activeTab === 'agendamentos' ? 'Agendamentos' : 'Histórico de Registros'}
+              {activeTab === 'ativos' ? 'Fluxo de Saída' : activeTab === 'agendamentos' ? 'Agendamentos' : activeTab === 'solicitacoes' ? 'Solicitações de Professores' : 'Histórico de Registros'}
             </h2>
           </div>
           <div className="flex items-center gap-3">
              <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
-               {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? schedules.length : history.length} Registros
+               {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? schedules.length : activeTab === 'solicitacoes' ? teacherRequests.length : history.length} Registros
              </span>
           </div>
         </div>
@@ -961,6 +1055,80 @@ export function Loans() {
               );
             })}
 
+            {activeTab === 'solicitacoes' && (teacherRequests || []).map((request) => (
+              <motion.div 
+                key={request.id}
+                layout
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-slate-200/60 p-8 hover:border-rose-400/40 transition-all group"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="size-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center">
+                      <Bell size={28} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-900 tracking-tight leading-none">{request.professor?.name || 'Professor'}</h4>
+                      <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Solicitação de Empréstimo</p>
+                    </div>
+                  </div>
+                  <div className={cn(
+                    "px-3 py-1 rounded-lg text-[10px] font-black uppercase",
+                    request.status === 'pending' && 'bg-amber-100 text-amber-600',
+                    request.status === 'approved' && 'bg-emerald-100 text-emerald-600',
+                    request.status === 'rejected' && 'bg-rose-100 text-rose-600'
+                  )}>
+                    {request.status === 'pending' && 'Pendente'}
+                    {request.status === 'approved' && 'Aprovada'}
+                    {request.status === 'rejected' && 'Rejeitada'}
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-xs">
+                     <span className="font-bold text-slate-400 uppercase tracking-widest">Data/Hora</span>
+                     <span className="font-black text-slate-900">
+                       {formatDate(request.scheduled_date)} • {request.start_time?.slice(0, 5)}
+                     </span>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens Solicitados</span>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.keys(request.requested_items).map(type => {
+                        const qty = request.requested_items[type];
+                        if (qty === 0) return null;
+                        return (
+                          <div key={type} className="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-sesi-blue" />
+                            <span className="text-[10px] font-black text-slate-700 uppercase">{qty}x {type}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {request.status === 'pending' && (
+                  <div className="mt-8 flex gap-3">
+                    <button 
+                      onClick={() => handleOpenPrepare(request)}
+                      className="flex-1 py-4 bg-sesi-blue text-white rounded-[1.5rem] text-[10px] font-black hover:bg-sesi-blue/90 transition-all shadow-lg shadow-sesi-blue/20"
+                    >
+                      PREPARAR KIT
+                    </button>
+                    <button 
+                      onClick={() => handleRejectRequest(request)}
+                      className="px-6 py-4 bg-slate-100 text-slate-400 rounded-[1.5rem] text-[10px] font-black hover:bg-rose-50 hover:text-rose-500 transition-all"
+                    >
+                      X
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            ))}
+
             {activeTab === 'historico' && (history || []).sort((a,b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime()).slice(0, 20).map((loan) => (
                <motion.div 
                  key={loan.id}
@@ -986,6 +1154,7 @@ export function Loans() {
           
           {((activeTab === 'ativos' && activeLoans.length === 0) || 
             (activeTab === 'agendamentos' && schedules.length === 0) ||
+            (activeTab === 'solicitacoes' && teacherRequests.length === 0) ||
             (activeTab === 'historico' && history.length === 0)) && (
             <div className="col-span-full py-40 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[4rem] border-2 border-dashed border-slate-100 shadow-inner">
                <div className="size-32 bg-slate-50 rounded-[3rem] flex items-center justify-center mb-8 shadow-xl">
@@ -1348,8 +1517,162 @@ export function Loans() {
         </div>
       )}
 
-      {/* Schedule Modal */}
-      {isScheduleModalOpen && (
+      {/* Prepare Request Modal */}
+      <AnimatePresence>
+        {isPrepareModalOpen && selectedRequest && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-end p-6">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              onClick={() => setIsPrepareModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"
+            />
+            
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-full max-w-5xl h-full bg-white rounded-[4rem] shadow-2xl flex flex-col overflow-hidden"
+            >
+              <div className="p-12 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-6">
+                  <div className="size-16 bg-sesi-blue text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-sesi-blue/30">
+                    <Laptop size={32} />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Preparar Solicitação</h2>
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">
+                      {selectedRequest.professor?.name} • {selectedRequest.start_time?.slice(0, 5)}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsPrepareModalOpen(false)} 
+                  className="size-14 bg-white text-slate-400 rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all shadow-md group"
+                >
+                  <X size={24} className="group-hover:rotate-90 transition-transform" />
+                </button>
+              </div>
+
+              <div className="flex-1 flex overflow-hidden">
+                {/* Left side: Item Selection */}
+                <div className="w-2/3 p-12 overflow-y-auto custom-scrollbar border-r border-slate-50">
+                  <div className="flex gap-4 mb-8">
+                    {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setActivePreparationType(type)}
+                        className={cn(
+                          "px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all",
+                          activePreparationType === type 
+                            ? "bg-sesi-blue text-white shadow-lg shadow-sesi-blue/20" 
+                            : "bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                        )}
+                      >
+                        {type}s ({(selectedRequest.requested_items as any)[type]})
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-4">
+                    {notebooks
+                      .filter(n => n.type === activePreparationType && n.status === 'available')
+                      .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}))
+                      .map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            if (preparationItems.includes(item.code)) {
+                              setPreparationItems(prev => prev.filter(c => c !== item.code));
+                            } else {
+                              setPreparationItems(prev => [...prev, item.code]);
+                            }
+                          }}
+                          className={cn(
+                            "group p-4 rounded-3xl border-2 transition-all text-left",
+                            preparationItems.includes(item.code)
+                              ? "bg-sesi-blue border-sesi-blue text-white shadow-xl shadow-sesi-blue/20"
+                              : "bg-white border-slate-100 hover:border-sesi-blue/50 text-slate-600"
+                          )}
+                        >
+                          <div className={cn(
+                            "size-10 rounded-xl mb-3 flex items-center justify-center transition-colors",
+                            preparationItems.includes(item.code) ? "bg-white/20" : "bg-slate-50 group-hover:bg-sesi-blue/10"
+                          )}>
+                            {item.type === 'notebook' && <Laptop size={18} />}
+                            {item.type === 'mouse' && <Mouse size={18} />}
+                            {item.type === 'charger' && <Zap size={18} />}
+                            {item.type === 'headphones' && <Headphones size={18} />}
+                          </div>
+                          <div className="font-black text-sm tracking-tight">{item.code}</div>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Right side: Summary */}
+                <div className="w-1/3 p-12 bg-slate-50/50 flex flex-col">
+                  <div className="flex-1">
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-8">Resumo da Preparação</h3>
+                    
+                    <div className="space-y-6">
+                      {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => {
+                         const requested = (selectedRequest.requested_items as any)[type];
+                         const selected = preparationItems.filter(code => {
+                           const item = notebooks.find(n => n.code === code);
+                           return item?.type === type;
+                         }).length;
+                         
+                         return (
+                           <div key={type} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                             <div className="flex items-center justify-between mb-2 text-[10px] font-black uppercase tracking-widest">
+                               <span className="text-slate-400">{type}s</span>
+                               <span className={cn(selected >= requested ? "text-emerald-500" : "text-amber-500")}>
+                                 {selected}/{requested}
+                               </span>
+                             </div>
+                             <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
+                               <div 
+                                 className={cn("h-full transition-all", selected >= requested ? "bg-emerald-500" : "bg-amber-500")}
+                                 style={{ width: `${Math.min(100, (selected / requested) * 100)}%` }}
+                               />
+                             </div>
+                           </div>
+                         );
+                      })}
+                    </div>
+
+                    <div className="mt-12 space-y-4">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens Selecionados ({preparationItems.length})</label>
+                       <div className="flex flex-wrap gap-2">
+                         {preparationItems.map(code => (
+                           <span key={code} className="px-3 py-1 bg-white border border-slate-100 rounded-lg text-[10px] font-black font-mono shadow-sm">
+                             {code}
+                           </span>
+                         ))}
+                       </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleConfirmPrepare}
+                    disabled={preparationItems.length === 0}
+                    className="w-full h-20 bg-emerald-500 text-white rounded-[2rem] font-black text-lg shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 disabled:grayscale active:scale-95 flex items-center justify-center gap-4"
+                  >
+                    FINALIZAR PREPARAÇÃO
+                    <Check size={24} />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isScheduleModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
             <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white">
@@ -1518,7 +1841,8 @@ export function Loans() {
             </div>
           </div>
         </div>
-      )}
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
