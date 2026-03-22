@@ -16,7 +16,11 @@ import {
   ChevronDown,
   Headphones,
   Zap,
-  Mouse
+  Mouse,
+  Calendar,
+  Clock,
+  Clock9,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Beneficiary, Notebook, Loan } from '../types';
@@ -29,6 +33,7 @@ export function Loans() {
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [activeLoans, setActiveLoans] = useState<Loan[]>([]);
+  const [history, setHistory] = useState<Loan[]>([]);
   
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState('');
   const [scannedCode, setScannedCode] = useState('');
@@ -40,19 +45,46 @@ export function Loans() {
   const [activeType, setActiveType] = useState<Notebook['type']>('notebook');
   const [showGrid, setShowGrid] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [rangeStart, setRangeStart] = useState<string | null>(null);
+   const [rangeStart, setRangeStart] = useState<string | null>(null);
+  
+  // New States for Advanced Features
+  const [activeTab, setActiveTab] = useState<'ativos' | 'agendamentos' | 'historico'>('ativos');
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [returnDeadline, setReturnDeadline] = useState('');
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [alertDismissed, setAlertDismissed] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+   useEffect(() => {
     fetchData();
-  }, []);
+    
+    // 17:40 Alert Logic
+    const timer = setInterval(() => {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+
+      if (hours === 17 && minutes === 40 && !alertDismissed && activeLoans.length > 0) {
+        // Simple alert for now, can be improved to a modal later
+        const nonReturnedNames = activeLoans.map(l => l.beneficiaryName).join(', ');
+        alert(`🚨 ALERTA DE DEVOLUÇÃO (17:40)\nNotebooks ainda não devolvidos com: ${nonReturnedNames}.\nPrazo final: 17:45!`);
+        setAlertDismissed(true);
+      }
+      
+      // Reset alert state at midnight
+      if (hours === 0 && minutes === 0) setAlertDismissed(false);
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, [activeLoans, alertDismissed]);
 
   const fetchData = async () => {
-    const [pRes, nRes, lRes] = await Promise.all([
+     const [pRes, nRes, lRes, sRes] = await Promise.all([
       supabase.from('professors').select('*'),
       supabase.from('notebooks').select('*'),
-      supabase.from('loans').select('*, loan_items(notebook_code)')
+      supabase.from('loans').select('*, loan_items(notebook_code)'),
+      supabase.from('schedules').select('*')
     ]);
 
     if (pRes.data) setBeneficiaries(pRes.data);
@@ -76,11 +108,16 @@ export function Loans() {
         beneficiaryName: l.beneficiary_name || 'N/A',
         loanDate: l.loan_date,
         returnDate: l.return_date,
+        returnDeadline: l.return_deadline,
         operatorId: l.operator_id,
         operatorName: l.operator_name || 'Monitor',
         items: Array.isArray(l.loan_items) ? l.loan_items.map((item: any) => item.notebook_code) : []
       }));
-      setActiveLoans(mappedLoans.filter((l: Loan) => l.status === 'active'));
+       setActiveLoans(mappedLoans.filter((l: any) => l.status === 'active'));
+       setHistory(mappedLoans.filter((l: any) => l.status === 'returned' || l.status === 'completed' || l.status === 'returned_partial'));
+    }
+    if (sRes.data) {
+      setSchedules(sRes.data);
     }
   };
 
@@ -284,7 +321,8 @@ export function Loans() {
       loanDate: new Date().toISOString(),
       operatorId: user?.id,
       operatorName: user?.name,
-      status: 'active'
+      status: 'active',
+      returnDeadline: returnDeadline || undefined
     };
 
     const loanId = Date.now().toString();
@@ -295,7 +333,8 @@ export function Loans() {
       operator_id: user?.id,
       operator_name: user?.name,
       status: 'active',
-      loan_date: new Date().toISOString()
+      loan_date: new Date().toISOString(),
+      return_deadline: returnDeadline || null
     };
 
     try {
@@ -338,6 +377,7 @@ export function Loans() {
         setSuccess('Empréstimo realizado com sucesso!');
         setSelectedItems([]);
         setSelectedBeneficiaryId('');
+        setReturnDeadline('');
         setIsLoanModalOpen(false);
         fetchData();
       }
@@ -347,14 +387,120 @@ export function Loans() {
     }
   };
 
+  const handleConfirmSchedule = async () => {
+    if (!selectedBeneficiaryId) {
+      setError('Selecione uma pessoa ou local.');
+      return;
+    }
+    if (selectedItems.length === 0) {
+      setError('Adicione pelo menos um item.');
+      return;
+    }
+
+    const beneficiary = beneficiaries.find(b => b.id === selectedBeneficiaryId);
+    if (!beneficiary) return;
+
+    try {
+      const sbSchedule = {
+        id: crypto.randomUUID(),
+        professor_id: selectedBeneficiaryId,
+        equipment_codes: selectedItems,
+        scheduled_date: new Date().toISOString().split('T')[0],
+        start_time: new Date().toISOString(),
+        return_deadline: returnDeadline || null,
+        status: 'pending',
+        created_by: user?.name
+      };
+
+      const { error: sError } = await supabase.from('schedules').insert(sbSchedule);
+      if (sError) throw sError;
+
+      setSuccess('Agendamento realizado com sucesso!');
+      setSelectedItems([]);
+      setSelectedBeneficiaryId('');
+      setReturnDeadline('');
+      setIsScheduleModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      setError('Erro ao criar agendamento: ' + err.message);
+    }
+  };
+
+  const handleStartSchedule = async (schedule: any) => {
+    try {
+      const loanId = Date.now().toString();
+      const sbLoan = {
+        id: loanId,
+        beneficiary_id: schedule.professor_id,
+        beneficiary_name: beneficiaries.find(b => b.id === schedule.professor_id)?.name || 'N/A',
+        operator_id: user?.id,
+        operator_name: user?.name,
+        status: 'active',
+        loan_date: new Date().toISOString(),
+        return_deadline: schedule.return_deadline
+      };
+
+      const loanItems = schedule.equipment_codes.map((code: string) => ({
+        loan_id: loanId,
+        notebook_code: code
+      }));
+
+      const { error: lError } = await supabase.from('loans').insert(sbLoan);
+      if (lError) throw lError;
+
+      const { error: liError } = await supabase.from('loan_items').insert(loanItems);
+      if (liError) throw liError;
+
+      const { error: sError } = await supabase.from('schedules').delete().eq('id', schedule.id);
+      if (sError) throw sError;
+
+      setSuccess('Agendamento iniciado com sucesso!');
+      fetchData();
+    } catch (err: any) {
+      setError('Erro ao iniciar agendamento: ' + err.message);
+    }
+  };
+
+  const handleDeleteSchedule = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este agendamento?')) return;
+    try {
+      const { error } = await supabase.from('schedules').delete().eq('id', id);
+      if (error) throw error;
+      setSuccess('Agendamento excluído.');
+      fetchData();
+    } catch (err: any) {
+      setError('Erro ao excluir: ' + err.message);
+    }
+  };
+
   // Filter and sort items for the modal grid using natural sort
   const modalItems = notebooks
     .filter(n => n.type === activeType)
-    .sort((a, b) => {
-      const codeA = (a.code || '').trim().toUpperCase();
-      const codeB = (b.code || '').trim().toUpperCase();
-      return codeA.localeCompare(codeB, undefined, { numeric: true });
-    });
+    .filter(n => {
+      // If loaning, check if item is already loaned
+      const isAlreadyLoaned = activeLoans.some(l => l.items.includes(n.code));
+      if (isAlreadyLoaned) return false;
+
+      // Check if scheduled for NOW
+      const now = new Date();
+      const isScheduledNow = schedules.some(s => {
+        if (s.status !== 'pending') return false;
+        const start = new Date(s.start_time);
+        const deadline = s.return_deadline ? new Date(`${now.toISOString().split('T')[0]}T${s.return_deadline}`) : null;
+        
+        // Simple check: if scheduled today and start <= now, and (no deadline or now < deadline)
+        const isToday = s.scheduled_date === now.toISOString().split('T')[0];
+        if (!isToday) return false;
+        
+        const isAfterStart = now >= start;
+        const isBeforeEnd = deadline ? now < deadline : true;
+        
+        return isAfterStart && isBeforeEnd && s.equipment_codes.includes(n.code);
+      });
+      
+      return !isScheduledNow;
+    })
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
 
   return (
     <motion.div 
@@ -374,6 +520,13 @@ export function Loans() {
         </div>
         <div className="flex items-center gap-4">
           <button 
+            onClick={() => setIsScheduleModalOpen(true)}
+            className="group relative flex items-center gap-3 bg-white border border-slate-200 text-slate-900 px-8 py-5 rounded-[2rem] font-black text-sm hover:bg-slate-50 transition-all shadow-lg"
+          >
+            <Calendar size={20} className="text-sesi-blue" />
+            <span>AGENDAR</span>
+          </button>
+          <button 
             onClick={() => setIsLoanModalOpen(true)}
             className="group relative flex items-center gap-3 bg-slate-900 text-white px-10 py-5 rounded-[2rem] font-black text-sm shadow-2xl shadow-slate-900/20 hover:scale-105 transition-all overflow-hidden"
           >
@@ -382,6 +535,29 @@ export function Loans() {
             <span className="relative">NOVO EMPRÉSTIMO</span>
           </button>
         </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex gap-4 p-2 bg-slate-100/50 rounded-[2.5rem] w-fit border border-slate-200/50 mb-8">
+        {[
+          { id: 'ativos', label: 'Empréstimos Ativos', icon: ArrowDownCircle, color: 'text-sesi-blue' },
+          { id: 'agendamentos', label: 'Agendamentos', icon: Calendar, color: 'text-amber-500' },
+          { id: 'historico', label: 'Histórico', icon: History, color: 'text-slate-500' }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={cn(
+              "flex items-center gap-3 px-8 py-4 rounded-[2rem] text-sm font-black transition-all",
+              activeTab === tab.id 
+                ? "bg-white text-slate-900 shadow-xl shadow-slate-200/50 scale-105"
+                : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+            )}
+          >
+            <tab.icon size={18} className={activeTab === tab.id ? tab.color : 'text-slate-400'} />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Grid of Dashboard Info */}
@@ -474,18 +650,20 @@ export function Loans() {
             <div className="size-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg">
               <ArrowDownCircle size={20} />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Fluxo de Saída</h2>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+              {activeTab === 'ativos' ? 'Fluxo de Saída' : activeTab === 'agendamentos' ? 'Agendamentos' : 'Histórico de Registros'}
+            </h2>
           </div>
           <div className="flex items-center gap-3">
              <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
-               {activeLoans.length} Registros no momento
+               {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? schedules.length : history.length} Registros
              </span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
           <AnimatePresence mode="popLayout">
-            {filteredLoans.map((loan) => {
+            {activeTab === 'ativos' && filteredLoans.map((loan) => {
               const loanDate = new Date(loan.loanDate);
               const minutesOut = Math.floor((new Date().getTime() - loanDate.getTime()) / (1000 * 60));
               const hoursOut = Math.floor(minutesOut / 60);
@@ -517,6 +695,12 @@ export function Loans() {
                              <History size={10} />
                              {formatDate(loan.loanDate)} às {new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                            </span>
+                           {loan.returnDeadline && (
+                             <span className="text-[10px] font-black text-sesi-blue uppercase tracking-widest flex items-center gap-1 bg-sesi-blue/10 px-2 py-0.5 rounded">
+                               <Clock size={10} />
+                               Prazo: {loan.returnDeadline}
+                             </span>
+                           )}
                         </div>
                       </div>
                     </div>
@@ -581,23 +765,105 @@ export function Loans() {
                 </motion.div>
               );
             })}
+
+            {activeTab === 'agendamentos' && (schedules || []).map((schedule) => {
+              const prof = beneficiaries.find(b => b.id === schedule.professor_id);
+              return (
+                <motion.div 
+                  key={schedule.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-slate-200/60 p-8 hover:border-amber-400/40 transition-all group"
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="size-14 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
+                        <Calendar size={28} />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-slate-900 tracking-tight leading-none">{prof?.name || 'Professor'}</h4>
+                        <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Agendado para Hoje</p>
+                      </div>
+                    </div>
+                    <div className="px-3 py-1 bg-amber-100 text-amber-600 rounded-lg text-[10px] font-black uppercase">Pendente</div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between text-xs">
+                       <span className="font-bold text-slate-400 uppercase tracking-widest">Horário</span>
+                       <span className="font-black text-slate-900">{schedule.start_time ? new Date(schedule.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                       <span className="font-bold text-slate-400 uppercase tracking-widest">Equipamentos</span>
+                       <span className="font-black text-sesi-blue">{schedule.equipment_codes?.length || 0} Itens</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    {schedule.equipment_codes?.slice(0, 3).map((code: string) => (
+                      <span key={code} className="px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-black font-mono">{code}</span>
+                    ))}
+                    {(schedule.equipment_codes?.length || 0) > 3 && (
+                      <span className="px-2 py-1 bg-slate-50 text-slate-400 rounded-lg text-[10px] font-bold">+{schedule.equipment_codes.length - 3}</span>
+                    )}
+                  </div>
+
+                  <div className="mt-8 flex gap-3">
+                    <button 
+                      onClick={() => handleStartSchedule(schedule)}
+                      className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black hover:bg-sesi-blue transition-all"
+                    >
+                      INICIAR AGORA
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteSchedule(schedule.id)}
+                      className="p-3 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
+
+            {activeTab === 'historico' && (history || []).sort((a,b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime()).slice(0, 20).map((loan) => (
+               <motion.div 
+                 key={loan.id}
+                 layout
+                 className="bg-white/50 backdrop-blur-sm rounded-[2.5rem] border border-slate-100 p-6 flex items-center justify-between group"
+               >
+                 <div className="flex items-center gap-4">
+                   <div className="size-12 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center">
+                     <History size={24} />
+                   </div>
+                   <div>
+                     <h4 className="font-bold text-slate-900 leading-none">{loan.beneficiaryName}</h4>
+                     <p className="text-[10px] text-slate-400 font-medium mt-1">Devolvido em {loan.returnDate ? new Date(loan.returnDate).toLocaleDateString() : 'N/A'}</p>
+                   </div>
+                 </div>
+                 <div className="text-right">
+                   <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-1">{loan.items.length} Itens</span>
+                   <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[8px] font-black uppercase">Concluído</span>
+                 </div>
+               </motion.div>
+            ))}
           </AnimatePresence>
-          {activeLoans.length === 0 && (
+          
+          {((activeTab === 'ativos' && activeLoans.length === 0) || 
+            (activeTab === 'agendamentos' && schedules.length === 0) ||
+            (activeTab === 'historico' && history.length === 0)) && (
             <div className="col-span-full py-40 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[4rem] border-2 border-dashed border-slate-100 shadow-inner">
-              <div className="size-32 bg-slate-50 rounded-[3rem] flex items-center justify-center mb-8 shadow-xl">
-                <History size={64} className="opacity-10" />
-              </div>
-              <h2 className="text-3xl font-black text-slate-900 tracking-tight">Registro de Empréstimos <span className="text-xs font-normal text-slate-400 font-mono">[v2.2]</span></h2>
-              <p className="text-sm text-slate-400 mt-2 font-medium">Todos os equipamentos estão disponíveis no momento.</p>
-              <button 
-                onClick={() => setIsLoanModalOpen(true)}
-                className="mt-8 bg-sesi-blue text-white px-8 py-4 rounded-2xl font-black text-sm hover:scale-105 transition-all shadow-xl shadow-sesi-blue/20"
-              >
-                Novo Empréstimo
-              </button>
+               <div className="size-32 bg-slate-50 rounded-[3rem] flex items-center justify-center mb-8 shadow-xl">
+                 <History size={64} className="opacity-10" />
+               </div>
+               <h2 className="text-3xl font-black text-slate-900 tracking-tight">Vazio por enquanto</h2>
+               <p className="text-sm text-slate-400 mt-2 font-medium">Não há registros nesta categoria.</p>
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {/* Loan Modal */}
@@ -639,10 +905,24 @@ export function Loans() {
                         className="w-full h-16 px-6 bg-slate-50 border-slate-100 rounded-[1.25rem] focus:ring-4 focus:ring-sesi-blue/10 outline-none transition-all font-bold text-slate-700 appearance-none"
                       >
                         <option value="">Selecione...</option>
-                        {beneficiaries.map(b => (
+                         {beneficiaries.map(b => (
                           <option key={b.id} value={b.id}>{b.name} ({b.type})</option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* Return Deadline */}
+                    <div className="space-y-3">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Clock size={14} className="text-sesi-blue" />
+                        Prazo de Devolução (Opcional)
+                      </label>
+                      <input 
+                        type="time"
+                        value={returnDeadline}
+                        onChange={(e) => setReturnDeadline(e.target.value)}
+                        className="w-full h-16 px-6 bg-slate-50 border-slate-100 rounded-[1.25rem] focus:ring-4 focus:ring-sesi-blue/10 outline-none transition-all font-bold text-slate-700"
+                      />
                     </div>
 
                     {/* Manual Input / Scan */}

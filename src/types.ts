@@ -47,7 +47,21 @@ export interface Loan {
   returnDate?: string;
   operatorId: string;
   operatorName: string;
-  status: 'active' | 'returned';
+  returned_at?: string;
+  status: 'active' | 'completed';
+  returnDeadline?: string;
+}
+
+export interface Schedule {
+  id: string;
+  professorId: string;
+  equipmentCodes: string[];
+  scheduledDate: string;
+  startTime: string;
+  returnDeadline?: string;
+  status: 'pending' | 'active' | 'cancelled' | 'completed';
+  createdBy?: string;
+  createdAt?: string;
 }
 
 export interface StockMovement {
