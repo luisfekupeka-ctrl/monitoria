@@ -124,10 +124,11 @@ export function Dashboard() {
       if (error) throw error;
       
       setActiveToken(newToken);
-      alert('Novo QR Code gerado com sucesso!');
+      alert('✅ Novo QR Code gerado com sucesso!');
     } catch (err: any) {
-      console.error(err);
-      alert('Erro ao gerar novo token: ' + err.message);
+      console.error('Rotation Error:', err);
+      const msg = err.message || JSON.stringify(err);
+      alert('❌ Erro ao gerar novo token: ' + msg);
     } finally {
       setIsRotating(false);
     }
