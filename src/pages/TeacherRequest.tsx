@@ -246,25 +246,40 @@ export function TeacherRequest() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 bg-slate-900/50 p-2 rounded-xl">
-                  <button 
-                    type="button"
-                    onClick={() => updateQuantity(item.id, -1)}
-                    className="size-10 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors text-slate-400"
-                  >
-                    <Minus size={20} />
-                  </button>
-                  <span className="w-8 text-center font-black text-xl text-blue-400">
-                    {Number(requestedItems[item.id] || 0)}
-                  </span>
-                  <button 
-                    type="button"
-                    onClick={() => updateQuantity(item.id, 1)}
-                    className="size-10 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors text-slate-400"
-                  >
-                    <Plus size={20} />
-                  </button>
-                </div>
+                  <div className="flex items-center gap-4 bg-slate-100 p-2 rounded-2xl border border-slate-200 shadow-inner">
+                    <button
+                      onClick={() => setRequestedItems(prev => ({
+                        ...prev,
+                        [item.id]: Math.max(0, (prev[item.id] || 0) - 1)
+                      }))}
+                      className="size-10 bg-white text-slate-900 rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all border border-slate-100 shadow-sm active:scale-90"
+                    >
+                      <Minus size={20} />
+                    </button>
+                    
+                    <input 
+                      type="number"
+                      value={requestedItems[item.id] || 0}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setRequestedItems(prev => ({
+                          ...prev,
+                          [item.id]: isNaN(val) ? 0 : Math.max(0, val)
+                        }));
+                      }}
+                      className="w-16 bg-transparent text-center font-black text-xl text-slate-900 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+
+                    <button
+                      onClick={() => setRequestedItems(prev => ({
+                        ...prev,
+                        [item.id]: (prev[item.id] || 0) + 1
+                      }))}
+                      className="size-10 bg-sesi-blue text-white rounded-xl flex items-center justify-center hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 active:scale-90"
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </div>
               </div>
             ))}
           </div>
