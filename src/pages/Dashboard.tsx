@@ -21,6 +21,8 @@ export function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [activeToken, setActiveToken] = useState('initial-portal-access');
+  const [isRotating, setIsRotating] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,6 +37,16 @@ export function Dashboard() {
           ...p,
           minQuantity: p.min_quantity
         })));
+      }
+
+      const { data: settingsData } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'active_request_token')
+        .single();
+      
+      if (settingsData?.value?.token) {
+        setActiveToken(settingsData.value.token);
       }
 
       if (lRes.data) {
@@ -96,6 +108,30 @@ export function Dashboard() {
       trendUp: false
     },
   ];
+
+  const handleRotateToken = async () => {
+    if (!confirm('Deseja gerar um novo QR Code? O anterior deixará de funcionar imediatamente.')) return;
+    
+    setIsRotating(true);
+    try {
+      const newToken = Math.random().toString(36).substring(2, 10) + '-' + Math.random().toString(36).substring(2, 10);
+      
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ value: { token: newToken }, updated_at: new Date().toISOString() })
+        .eq('key', 'active_request_token');
+
+      if (error) throw error;
+      
+      setActiveToken(newToken);
+      alert('Novo QR Code gerado com sucesso!');
+    } catch (err: any) {
+      console.error(err);
+      alert('Erro ao gerar novo token: ' + err.message);
+    } finally {
+      setIsRotating(false);
+    }
+  };
 
   return (
     <motion.div 
@@ -283,7 +319,7 @@ export function Dashboard() {
           
           <div className="p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 flex items-center justify-center mb-8 shadow-inner">
             <QRCodeSVG 
-              value={`${window.location.origin}/request`} 
+              value={`${window.location.origin}/r/${activeToken}`} 
               size={180}
               level="H"
               includeMargin={false}
@@ -294,7 +330,7 @@ export function Dashboard() {
           <div className="w-full space-y-3">
              <button 
                onClick={() => {
-                 navigator.clipboard.writeText(`${window.location.origin}/request`);
+                 navigator.clipboard.writeText(`${window.location.origin}/r/${activeToken}`);
                  alert('Link copiado para a área de transferência!');
                }}
                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-3 active:scale-95"
@@ -302,8 +338,15 @@ export function Dashboard() {
                <Copy size={16} />
                Copiar Link
              </button>
+             <button 
+               onClick={handleRotateToken}
+               disabled={isRotating}
+               className="w-full py-4 bg-amber-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+             >
+               {isRotating ? 'Gerando...' : 'Trocar QR Code'}
+             </button>
              <Link 
-               to="/request" 
+               to={`/r/${activeToken}`} 
                target="_blank"
                className="w-full py-4 bg-white text-slate-400 border border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-3"
              >

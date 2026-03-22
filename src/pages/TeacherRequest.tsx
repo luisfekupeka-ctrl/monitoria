@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { 
   Laptop, 
@@ -46,10 +47,36 @@ export function TeacherRequest() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
+  const [isValidToken, setIsValidToken] = useState<boolean | null>(null);
+  const [isCheckingToken, setIsCheckingToken] = useState(true);
 
   useEffect(() => {
+    validateToken();
     fetchProfessors();
-  }, []);
+  }, [token]);
+
+  const validateToken = async () => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'active_request_token')
+        .single();
+
+      if (fetchError) throw fetchError;
+      
+      const activeToken = data?.value?.token;
+      setIsValidToken(activeToken === token);
+    } catch (err) {
+      console.error('Error validating token:', err);
+      setIsValidToken(false);
+    } finally {
+      setIsCheckingToken(false);
+    }
+  };
 
   const fetchProfessors = async () => {
     const { data } = await supabase.from('professors').select('id, name').order('name');
@@ -105,6 +132,38 @@ export function TeacherRequest() {
       setIsLoading(false);
     }
   };
+
+  if (isCheckingToken) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="size-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (isValidToken === false) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-white font-sans text-center">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md bg-slate-800 rounded-[2.5rem] p-10 shadow-2xl border border-slate-700"
+        >
+          <div className="size-20 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-rose-500">
+            <AlertCircle size={40} />
+          </div>
+          <h2 className="text-2xl font-black mb-4 tracking-tight text-white">Acesso Expirado</h2>
+          <p className="text-slate-400 font-medium mb-8 leading-relaxed">
+            Este QR Code não é mais válido ou foi desativado pela monitoria. 
+            Peça ao monitor para gerar um novo QR Code.
+          </p>
+          <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-t border-slate-700 pt-8">
+            SESI MONITORIA • PORTAL SEGURO
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (isSuccess) {
     return (

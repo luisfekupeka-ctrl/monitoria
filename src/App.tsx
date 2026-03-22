@@ -56,7 +56,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/request" element={<TeacherRequest />} />
+            <Route path="/r/:token" element={<TeacherRequest />} />
             
             <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/estoque" element={<PrivateRoute><Stock /></PrivateRoute>} />
