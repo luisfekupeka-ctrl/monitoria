@@ -13,7 +13,8 @@ import {
   Phone,
   MessageCircle,
   Copy,
-  Check
+  Check,
+  KeyRound
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Beneficiary, BeneficiaryType, Loan } from '../types';
@@ -185,8 +186,30 @@ export function Users() {
                   <button 
                     onClick={() => { setEditingBeneficiary(beneficiary); setIsModalOpen(true); }}
                     className="p-2 text-slate-400 hover:text-sesi-blue transition-colors"
+                    title="Editar Cadastro"
                   >
                     <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      if (confirm('Deseja resetar o telefone e a Senha (PIN) deste usuário? Isso permitirá que ele recadastre sua senha no próximo acesso.')) {
+                        try {
+                          const { error } = await supabase.from('professors').update({ phone: null, pin: null }).eq('id', beneficiary.id);
+                          if (error) {
+                            alert('Erro ao resetar: ' + error.message);
+                            return;
+                          }
+                          fetchBeneficiaries();
+                          alert('Telefone e Senha (PIN) resetados com sucesso!');
+                        } catch (err) {
+                          alert('Erro ao resetar.');
+                        }
+                      }
+                    }}
+                    className="p-2 text-slate-400 hover:text-amber-500 transition-colors"
+                    title="Resetar Senha (PIN)"
+                  >
+                    <KeyRound size={16} />
                   </button>
                   <button 
                     onClick={async () => {

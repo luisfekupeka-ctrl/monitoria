@@ -36,14 +36,12 @@ const EQUIPMENT_TYPES: EquipmentItem[] = [
 ];
 
 export default function TeacherRequest() {
-  const [professors, setProfessors] = useState<{ id: string, name: string, type: string, phone?: string }[]>([]);
+  const [professors, setProfessors] = useState<{ id: string, name: string, type: string, phone?: string, pin?: string }[]>([]);
   const [selectedProfessorId, setSelectedProfessorId] = useState('');
   
-  // 2FA states
+  // PIN states
   const [phoneInput, setPhoneInput] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
-  const [isCodeSent, setIsCodeSent] = useState(false);
+  const [pinInput, setPinInput] = useState('');
   const [isVerified, setIsVerified] = useState(false);
 
   const [requestedItems, setRequestedItems] = useState<Record<string, number>>({
@@ -111,7 +109,7 @@ export default function TeacherRequest() {
   const fetchProfessors = async () => {
     const { data } = await supabase
       .from('professors')
-      .select('id, name, type, phone')
+      .select('id, name, type, phone, pin')
       .in('type', ['professor', 'collaborator'])
       .order('name');
     if (data) setProfessors(data);
@@ -120,9 +118,7 @@ export default function TeacherRequest() {
   const handleProfessorSelect = (id: string) => {
     setSelectedProfessorId(id);
     setIsVerified(false);
-    setIsCodeSent(false);
-    setVerificationCode('');
-    setGeneratedCode(null);
+    setPinInput('');
     const prof = professors.find(p => p.id === id);
     if (prof && prof.phone) {
       setPhoneInput(prof.phone);
@@ -172,10 +168,10 @@ export default function TeacherRequest() {
 
       if (insertError) throw insertError;
 
-      // Update phone if it was newly added
+      // Update phone and pin if it's new
       const prof = professors.find(p => p.id === selectedProfessorId);
-      if (prof && !prof.phone && phoneInput) {
-        await supabase.from('professors').update({ phone: phoneInput }).eq('id', selectedProfessorId);
+      if (prof && !prof.pin) {
+        await supabase.from('professors').update({ phone: phoneInput, pin: pinInput }).eq('id', selectedProfessorId);
       }
 
       setIsSuccess(true);
@@ -305,90 +301,74 @@ export default function TeacherRequest() {
                   </div>
                 </div>
                 
-                {!isCodeSent ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-slate-300 leading-relaxed font-medium">
-                      {professors.find(p => p.id === selectedProfessorId)?.phone
-                        ? "Confirme seu número de WhatsApp para receber o código de acesso."
-                        : "Parece que é seu primeiro acesso! Cadastre seu WhatsApp (com DDD) para receber o código."}
-                    </p>
-                    <input
-                      type="tel"
-                      value={phoneInput}
-                      onChange={(e) => setPhoneInput(e.target.value)}
-                      placeholder="(11) 99999-9999"
-                      className="w-full bg-slate-900 border-2 border-slate-700 text-white rounded-2xl px-5 py-4 focus:border-blue-500 outline-none font-bold text-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const numericPhone = phoneInput.replace(/\D/g, '');
-                        if (numericPhone.length < 10) {
-                          setError("Digite um número de celular válido com DDD.");
-                          return;
-                        }
-                        setError(null);
-                        const code = Math.floor(1000 + Math.random() * 9000).toString();
-                        setGeneratedCode(code);
-                        setIsCodeSent(true);
-                        alert(`[SIMULAÇÃO SMS/WHATSAPP] 📲\n\nMonitoria SESI:\nSeu código de acesso é: ${code}\n\n(Esta é uma simulação para fins de teste. Para enviar mensagens reais é necessária integração com serviços pagos API).`);
-                      }}
-                      className="w-full py-4 bg-sesi-blue hover:bg-blue-600 text-white font-black text-lg rounded-2xl transition-all active:scale-95"
-                    >
-                      Receber Código
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <p className="text-sm text-slate-300 leading-relaxed font-medium">
-                      Enviamos um código de <strong className="text-white">4 dígitos</strong> para <strong className="text-white">{phoneInput}</strong>.
-                    </p>
-                    <input
-                      type="text"
-                      value={verificationCode}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                        setVerificationCode(val);
-                        if (val.length === 4) {
-                           if (val === generatedCode) {
-                             setIsVerified(true);
-                             setError(null);
-                           } else {
-                             setError("Código incorreto. Tente novamente.");
-                           }
-                        }
-                      }}
-                      placeholder="0000"
-                      maxLength={4}
-                      className="w-full text-center tracking-[1em] font-mono text-3xl bg-slate-900 border-2 border-slate-700 text-white rounded-2xl px-5 py-4 focus:border-emerald-500 outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (verificationCode === generatedCode) {
-                          setIsVerified(true);
-                          setError(null);
-                        } else {
-                          setError("Código incorreto. Tente novamente.");
-                        }
-                      }}
-                      disabled={verificationCode.length !== 4}
-                      className="w-full py-4 bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 hover:bg-emerald-600 text-white font-black text-lg rounded-2xl transition-all active:scale-95"
-                    >
-                      Confirmar Código
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCodeSent(false);
-                        setVerificationCode('');
-                      }}
-                      className="w-full py-2 text-slate-400 hover:text-white text-sm font-bold transition-all text-center"
-                    >
-                      Voltar ou reenviar código
-                    </button>
-                  </div>
-                )}
+                {(() => {
+                  const prof = professors.find(p => p.id === selectedProfessorId);
+                  const hasPin = !!prof?.pin;
+                  
+                  return (
+                    <div className="space-y-4">
+                      <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                        {hasPin 
+                          ? "Para sua segurança, digite a sua Senha (PIN) de 4 dígitos."
+                          : "Parece que é seu primeiro acesso! Cadastre seu WhatsApp (com DDD) e crie uma Senha (PIN) de 4 dígitos."}
+                      </p>
+                      
+                      <div className="space-y-3">
+                        <label className="text-xs font-bold text-blue-400 uppercase tracking-widest">Seu WhatsApp</label>
+                        <input
+                          type="tel"
+                          value={phoneInput}
+                          onChange={(e) => setPhoneInput(e.target.value)}
+                          placeholder="(11) 99999-9999"
+                          disabled={hasPin}
+                          className="w-full bg-slate-900 border-2 border-slate-700 text-white rounded-2xl px-5 py-4 focus:border-blue-500 outline-none font-bold text-lg disabled:opacity-50"
+                        />
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <label className="text-xs font-bold text-blue-400 uppercase tracking-widest">{hasPin ? 'Sua Senha (PIN)' : 'Crie sua Senha (PIN)'}</label>
+                        <input
+                          type="password"
+                          value={pinInput}
+                          onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          placeholder="****"
+                          maxLength={4}
+                          className="w-full text-center tracking-[1em] font-mono text-3xl bg-slate-900 border-2 border-slate-700 text-white rounded-2xl px-5 py-4 focus:border-emerald-500 outline-none"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!hasPin) {
+                            const numericPhone = phoneInput.replace(/\D/g, '');
+                            if (numericPhone.length < 10) {
+                              setError("Digite um número de celular válido com DDD.");
+                              return;
+                            }
+                            if (pinInput.length !== 4) {
+                              setError("A sua Senha (PIN) deve ter exatamente 4 números.");
+                              return;
+                            }
+                            setIsVerified(true);
+                            setError(null);
+                          } else {
+                            if (pinInput === prof.pin) {
+                              setIsVerified(true);
+                              setError(null);
+                            } else {
+                              setError("Senha (PIN) incorreta. Tente novamente.");
+                            }
+                          }
+                        }}
+                        disabled={pinInput.length !== 4 || (!hasPin && phoneInput.replace(/\D/g, '').length < 10)}
+                        className="w-full py-4 bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 hover:bg-emerald-600 text-white font-black text-lg rounded-2xl transition-all active:scale-95"
+                      >
+                        {hasPin ? 'Confirmar Acesso' : 'Cadastrar e Avançar'}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </motion.div>
           )}
