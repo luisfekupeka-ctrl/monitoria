@@ -150,6 +150,18 @@ export function Loans() {
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
+  const addNotification = (title: string, message: string, type: 'alert' | 'info' | 'success' = 'info') => {
+    const newNotify: Notification = {
+      id: Date.now().toString(),
+      title,
+      message,
+      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      type,
+      read: false
+    };
+    setNotifications(prev => [newNotify, ...prev]);
+  };
+
   const filteredLoans = (activeLoans || []).filter(loan => {
     const beneficiaryName = loan.beneficiaryName || '';
     const items = loan.items || [];
@@ -404,7 +416,7 @@ export function Loans() {
         }));
 
         setSuccess('Empréstimo realizado com sucesso!');
-        setSelectedItems([]);
+        addNotification('Novo Empréstimo', `Empréstimo confirmado para ${beneficiary?.name}`, 'success');
         setSelectedBeneficiaryId('');
         setReturnDeadline('');
         setIsLoanModalOpen(false);
@@ -445,7 +457,7 @@ export function Loans() {
       if (sError) throw sError;
 
       setSuccess('Agendamento realizado com sucesso!');
-      setSelectedItems([]);
+      addNotification('Agendamento Criado', `Equipamentos reservados para ${beneficiary.name}`, 'info');
       setSelectedBeneficiaryId('');
       setReturnDeadline('');
       setIsScheduleModalOpen(false);
@@ -484,6 +496,7 @@ export function Loans() {
       if (sError) throw sError;
 
       setSuccess('Agendamento iniciado com sucesso!');
+      addNotification('Empréstimo Iniciado', `Empréstimo iniciado para ${beneficiaries.find(b => b.id === schedule.professor_id)?.name || 'N/A'} a partir do agendamento.`, 'success');
       fetchData();
     } catch (err: any) {
       setError('Erro ao iniciar agendamento: ' + err.message);
