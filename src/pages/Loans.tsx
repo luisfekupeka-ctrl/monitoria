@@ -615,6 +615,24 @@ export function Loans() {
     }
   };
 
+  const handleClearHistory = async () => {
+    if (!confirm('AVISO: Isso irá apagar permanentemente todos os registros de histórico (devoluções concluídas) do banco de dados para liberar espaço. Deseja continuar?')) return;
+    try {
+      const { error } = await supabase
+        .from('loans')
+        .delete()
+        .in('status', ['returned', 'completed', 'returned_partial']);
+      
+      if (error) throw error;
+      
+      setSuccess('Histórico limpo com sucesso!');
+      addNotification('Histórico Limpo', 'Todos os registros de devoluções concluídas foram removidos.', 'info');
+      fetchData();
+    } catch (err: any) {
+      setError('Erro ao limpar histórico: ' + err.message);
+    }
+  };
+
   // Filter and sort items for the modal grid using natural sort
   const modalItems = notebooks
     .filter(n => n.type === activeType)
@@ -891,6 +909,15 @@ export function Loans() {
                  onChange={(e) => setSelectedScheduleDate(e.target.value)}
                  className="px-4 py-2 bg-white border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm outline-none focus:ring-2 focus:ring-sesi-blue/20"
                />
+             )}
+             {activeTab === 'historico' && history.length > 0 && (
+               <button
+                 onClick={handleClearHistory}
+                 className="px-4 py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2"
+               >
+                 <Trash2 size={14} />
+                 Limpar Histórico
+               </button>
              )}
              <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
                {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? (schedules || []).filter((s: any) => s.scheduled_date === selectedScheduleDate).length : activeTab === 'solicitacoes' ? teacherRequests.length : history.length} Registros
