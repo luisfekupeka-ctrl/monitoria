@@ -1066,7 +1066,9 @@ export function Loans() {
               );
             })}
 
-            {activeTab === 'solicitacoes' && (teacherRequests || []).map((request) => (
+            {activeTab === 'solicitacoes' && (teacherRequests || [])
+              .filter(r => r.scheduled_date === new Date().toISOString().split('T')[0] && r.status === 'pending')
+              .map((request) => (
               <motion.div 
                 key={request.id}
                 layout

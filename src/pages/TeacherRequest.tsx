@@ -371,19 +371,7 @@ export default function TeacherRequest() {
         </section>
 
         {/* Timing */}
-        <section className="grid grid-cols-2 gap-4">
-          <div className="space-y-4">
-            <label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <Clock size={14} className="text-blue-500" />
-              Retirada
-            </label>
-            <input 
-              type="time" 
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="w-full h-16 px-6 bg-slate-800 border-2 border-slate-700 rounded-2xl focus:border-blue-500 outline-none transition-all font-bold text-slate-200"
-            />
-          </div>
+        <section className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-4">
               <label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
@@ -402,7 +390,7 @@ export default function TeacherRequest() {
             <div className="space-y-4">
               <label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 <Clock size={14} className="text-blue-500" />
-                Início do Uso
+                Horário (Retirada/Uso)
               </label>
               <input 
                 type="time"
