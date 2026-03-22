@@ -64,6 +64,7 @@ export function Loans() {
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
+  const [startTime, setStartTime] = useState('');
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -434,7 +435,7 @@ export function Loans() {
         professor_id: selectedBeneficiaryId,
         equipment_codes: selectedItems,
         scheduled_date: new Date().toISOString().split('T')[0],
-        start_time: new Date().toISOString(),
+        start_time: startTime ? `${new Date().toISOString().split('T')[0]}T${startTime}:00` : new Date().toISOString(),
         return_deadline: returnDeadline || null,
         status: 'pending',
         created_by: user?.name
@@ -1339,9 +1340,10 @@ export function Loans() {
               <button 
                 onClick={() => {
                   setIsScheduleModalOpen(false);
-                  setSelectedItems([]);
-                  setSelectedBeneficiaryId('');
-                  setReturnDeadline('');
+                setSelectedItems([]);
+                setSelectedBeneficiaryId('');
+                setReturnDeadline('');
+                setStartTime('');
                 }} 
                 className="size-12 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all"
               >
@@ -1368,6 +1370,19 @@ export function Loans() {
                           <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
                       </select>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Clock size={14} className="text-amber-500" />
+                        Horário de Retirada
+                      </label>
+                      <input 
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className="w-full h-16 px-6 bg-slate-50 border-slate-100 rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700"
+                      />
                     </div>
 
                     <div className="space-y-3">
