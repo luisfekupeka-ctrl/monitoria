@@ -6,5 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDate(date: string | Date) {
-  return new Date(date).toLocaleString('pt-BR');
+  if (!date) return '';
+  const dateStr = typeof date === 'string' ? date : date.toISOString();
+  // Ensure we don't shift timezone if it's just a date string like YYYY-MM-DD
+  const d = dateStr.includes('T') ? new Date(dateStr) : new Date(`${dateStr}T12:00:00`);
+  return d.toLocaleDateString('pt-BR');
 }

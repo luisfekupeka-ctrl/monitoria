@@ -902,13 +902,24 @@ export function Loans() {
             </h2>
           </div>
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-             {activeTab === 'agendamentos' && (
-               <input 
-                 type="date"
-                 value={selectedScheduleDate}
-                 onChange={(e) => setSelectedScheduleDate(e.target.value)}
-                 className="px-4 py-2 bg-white border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm outline-none focus:ring-2 focus:ring-sesi-blue/20"
-               />
+             {(activeTab === 'agendamentos' || activeTab === 'solicitacoes') && (
+               <div className="flex items-center gap-2">
+                 <span className="text-[10px] font-bold text-slate-400 uppercase">Filtro:</span>
+                 <input 
+                   type="date"
+                   value={selectedScheduleDate}
+                   onChange={(e) => setSelectedScheduleDate(e.target.value)}
+                   className="px-4 py-2 bg-white border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm outline-none focus:ring-2 focus:ring-sesi-blue/20 cursor-pointer text-slate-600"
+                 />
+                 {selectedScheduleDate && (
+                   <button 
+                     onClick={() => setSelectedScheduleDate('')}
+                     className="text-[10px] font-black text-rose-500 hover:text-rose-600 hover:underline uppercase tracking-widest transition-all"
+                   >
+                     Limpar
+                   </button>
+                 )}
+               </div>
              )}
              {activeTab === 'historico' && history.length > 0 && (
                <button
@@ -920,7 +931,7 @@ export function Loans() {
                </button>
              )}
              <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
-               {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? (schedules || []).filter((s: any) => s.scheduled_date === selectedScheduleDate).length : activeTab === 'solicitacoes' ? teacherRequests.length : history.length} Registros
+               {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? (schedules || []).filter((s: any) => !selectedScheduleDate || s.scheduled_date === selectedScheduleDate).length : activeTab === 'solicitacoes' ? teacherRequests.filter(r => r.status === 'pending' && (!selectedScheduleDate || r.scheduled_date === selectedScheduleDate)).length : history.length} Registros
              </span>
           </div>
         </div>
@@ -1030,7 +1041,7 @@ export function Loans() {
               );
             })}
 
-            {activeTab === 'agendamentos' && (schedules || []).filter((s: any) => s.scheduled_date === selectedScheduleDate).map((schedule) => {
+            {activeTab === 'agendamentos' && (schedules || []).filter((s: any) => !selectedScheduleDate || s.scheduled_date === selectedScheduleDate).map((schedule) => {
               const prof = beneficiaries.find(b => b.id === schedule.professor_id);
               return (
                 <motion.div 
@@ -1095,7 +1106,7 @@ export function Loans() {
             })}
 
             {activeTab === 'solicitacoes' && (teacherRequests || [])
-              .filter(r => r.status === 'pending')
+              .filter(r => r.status === 'pending' && (!selectedScheduleDate || r.scheduled_date === selectedScheduleDate))
               .map((request) => (
               <motion.div 
                 key={request.id}
