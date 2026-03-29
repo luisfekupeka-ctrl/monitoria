@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -14,21 +14,31 @@ import {
   ShieldCheck,
   Sun,
   Moon,
-  KeyRound
+  KeyRound,
+  Menu,
+  X,
+  AlertCircle
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { notifications, unreadCount, markAllAsRead, removeNotification } = useNotification();
   const location = useLocation();
   const navigate = useNavigate();
+  
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [passwordStatus, setPasswordStatus] = useState('');
+  
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   const isDark = theme === 'dark';
 
@@ -41,10 +51,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: BarChart4, label: 'Relatórios', path: '/relatorios' },
   ];
 
-  // Add Admin only menu item
   if (user?.role === 'admin') {
     menuItems.push({ icon: ShieldCheck, label: 'Gestão de Acesso', path: '/gestao-acesso' });
   }
+
+  // Close sidebar on navigation (mobile)
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -59,7 +73,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
     try {
       if (user?.role === 'admin') {
-        // Admin changes password directly
         const { error } = await supabase
           .from('users')
           .update({ password: newPassword })
@@ -69,7 +82,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         setNewPassword('');
         setTimeout(() => { setIsPasswordModalOpen(false); setPasswordStatus(''); }, 1500);
       } else {
-        // Collaborator requests change — store in a pending field
         const { error } = await supabase
           .from('users')
           .update({ password_change_request: newPassword })
@@ -86,22 +98,42 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={cn("flex h-screen transition-colors duration-300", isDark ? "bg-gray-900" : "bg-slate-50")}>
+      
+      {/* Sidebar Overlay (Mobile) */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <aside className={cn(
-        "w-64 flex flex-col border-r transition-colors duration-300",
+        "fixed inset-y-0 left-0 w-64 flex flex-col border-r transition-all duration-300 z-50 lg:translate-x-0 lg:static",
+        isSidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
         isDark ? "bg-gray-950 border-gray-800" : "bg-white border-slate-200"
       )}>
         <div className={cn(
-          "p-6 flex items-center gap-3 border-b transition-colors",
+          "p-6 flex items-center justify-between border-b transition-colors",
           isDark ? "border-gray-800" : "border-slate-100"
         )}>
-          <div className="size-10 bg-sesi-blue rounded-lg flex items-center justify-center text-white">
-            <Monitor size={24} />
+          <div className="flex items-center gap-3">
+            <div className="size-10 bg-sesi-blue rounded-lg flex items-center justify-center text-white">
+              <Monitor size={24} />
+            </div>
+            <div className="flex flex-col">
+              <h1 className={cn("text-base font-bold leading-tight", isDark ? "text-white" : "text-slate-900")}>Monitoria SESI</h1>
+              <p className={cn("text-xs font-medium", isDark ? "text-gray-500" : "text-slate-500")}>Gestão de Ativos</p>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <h1 className={cn("text-base font-bold leading-tight", isDark ? "text-white" : "text-slate-900")}>Monitoria SESI</h1>
-            <p className={cn("text-xs font-medium", isDark ? "text-gray-500" : "text-slate-500")}>Gestão de Ativos</p>
-          </div>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-slate-400">
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -128,7 +160,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className={cn("p-4 border-t transition-colors", isDark ? "border-gray-800" : "border-slate-100")}>
-          {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
             className={cn(
@@ -142,7 +173,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span>{isDark ? 'Modo Claro' : 'Modo Escuro'}</span>
           </button>
 
-          {/* Password Change */}
           <button
             onClick={() => setIsPasswordModalOpen(true)}
             className={cn(
@@ -182,11 +212,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className={cn(
-          "h-16 border-b flex items-center justify-between px-8 transition-colors",
+          "h-16 border-b flex items-center justify-between px-4 lg:px-8 transition-colors",
           isDark ? "bg-gray-950 border-gray-800" : "bg-white border-slate-200"
         )}>
-          <div className="flex-1 max-w-xl">
-            <div className="relative group">
+          <div className="flex items-center gap-4 flex-1 max-w-xl">
+            {/* Hamburger Menu (Mobile) */}
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className={cn(
+                "lg:hidden p-2 rounded-xl transition-colors",
+                isDark ? "text-gray-400 bg-gray-800" : "text-slate-600 bg-slate-50"
+              )}
+            >
+              <Menu size={20} />
+            </button>
+
+            <div className="relative group flex-1">
               <span className={cn(
                 "absolute left-3 top-1/2 -translate-y-1/2 transition-colors",
                 isDark ? "text-gray-600 group-focus-within:text-sesi-blue" : "text-slate-400 group-focus-within:text-sesi-blue"
@@ -203,19 +244,98 @@ export function Layout({ children }: { children: React.ReactNode }) {
               />
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button className={cn(
-              "size-10 flex items-center justify-center rounded-xl transition-colors relative",
-              isDark ? "bg-gray-800 text-gray-400 hover:text-sesi-blue" : "bg-slate-50 text-slate-600 hover:text-sesi-blue"
-            )}>
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 size-2 bg-sesi-yellow rounded-full border-2 border-white"></span>
-            </button>
+
+          <div className="flex items-center gap-2 lg:gap-4 ml-4">
+            <div className="relative">
+              <button 
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className={cn(
+                  "size-10 flex items-center justify-center rounded-xl transition-colors relative",
+                  isDark ? "bg-gray-800 text-gray-400 hover:text-sesi-blue" : "bg-slate-50 text-slate-600 hover:text-sesi-blue",
+                  isNotificationOpen && "ring-2 ring-sesi-blue/50"
+                )}
+              >
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-2 right-2 size-4 bg-sesi-yellow text-[10px] font-black text-slate-900 rounded-full border-2 border-white flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {isNotificationOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[60]" onClick={() => setIsNotificationOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className={cn(
+                        "absolute right-0 mt-4 w-[calc(100vw-2rem)] md:w-96 rounded-3xl shadow-2xl border p-4 z-[70] ring-1 ring-black/5",
+                        isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-100"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-4 px-2">
+                        <h4 className={cn("font-black text-sm", isDark ? "text-white" : "text-slate-900")}>Notificações</h4>
+                        <button 
+                          onClick={markAllAsRead}
+                          className="text-[10px] font-black text-sesi-blue uppercase tracking-widest hover:underline"
+                        >
+                          Limpar tudo
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                        {notifications.length === 0 ? (
+                          <div className="py-10 text-center text-slate-300">
+                            <Bell size={32} className="mx-auto mb-2 opacity-10" />
+                            <p className="text-[10px] font-bold uppercase tracking-widest">Nenhuma notificação</p>
+                          </div>
+                        ) : (
+                          notifications.map(n => (
+                            <div 
+                              key={n.id}
+                              className={cn(
+                                "p-3 rounded-2xl border transition-all relative group",
+                                n.read 
+                                  ? isDark ? "bg-gray-800/20 border-gray-800" : "bg-slate-50 border-slate-100" 
+                                  : isDark ? "bg-blue-900/10 border-blue-900/40" : "bg-blue-50 border-blue-100"
+                              )}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={cn(
+                                  "size-8 rounded-xl flex items-center justify-center shrink-0",
+                                  n.type === 'alert' ? "bg-rose-100 text-rose-500" : "bg-blue-100 text-blue-500"
+                                )}>
+                                  {n.type === 'alert' ? <AlertCircle size={16} /> : <Bell size={16} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h5 className={cn("text-xs font-black truncate", isDark ? "text-white" : "text-slate-900")}>{n.title}</h5>
+                                  <p className={cn("text-[10px] mt-0.5 leading-relaxed break-words", isDark ? "text-gray-400" : "text-slate-500")}>{n.message}</p>
+                                  <span className="text-[9px] font-bold text-slate-400 mt-1.5 block">{n.time}</span>
+                                </div>
+                                <button 
+                                  onClick={() => removeNotification(n.id)}
+                                  className="p-1 text-slate-400 hover:text-rose-500 transition-all"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
 
         <div className={cn(
-          "flex-1 overflow-y-auto p-8 transition-colors",
+          "flex-1 overflow-y-auto p-4 lg:p-8 transition-colors",
           isDark ? "bg-gray-900" : "bg-slate-50"
         )}>
           {children}
@@ -224,9 +344,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Password Change Modal */}
       {isPasswordModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className={cn(
-            "w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden",
+            "w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden",
             isDark ? "bg-gray-900 border border-gray-800" : "bg-white"
           )}>
             <div className={cn(
@@ -282,3 +402,4 @@ export function Layout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
