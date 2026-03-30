@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Product, Loan, Notebook } from '../types';
-import { cn, formatDate } from '../lib/utils';
+import { cn, formatDate, formatTime } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { QRCodeSVG } from 'qrcode.react';
 import { Bell, Copy, Check as CheckIcon } from 'lucide-react';
@@ -271,8 +271,8 @@ export function Dashboard() {
                   </td>
                   <td className="px-8 py-5">
                     <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-600">{loan.loanDate ? new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
-                      <span className="text-[10px] font-bold text-slate-400">{loan.loanDate ? new Date(loan.loanDate).toLocaleDateString('pt-BR') : '--/--/--'}</span>
+                      <span className="text-sm font-bold text-slate-600">{formatTime(loan.loanDate)}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{formatDate(loan.loanDate)}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5">

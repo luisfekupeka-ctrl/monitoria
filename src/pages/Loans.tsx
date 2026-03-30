@@ -26,7 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Beneficiary, Notebook, Loan } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { cn, formatDate } from '../lib/utils';
+import { cn, formatDate, formatTime, getTimezoneOffset } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 
 export function Loans() {
@@ -393,15 +393,9 @@ export function Loans() {
     if (!beneficiary) return;
 
     try {
-      // Get current date and local timezone offset correctly
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0];
-      const offsetMinutes = -now.getTimezoneOffset();
-      const absOffset = Math.abs(offsetMinutes);
-      const hoursOffset = String(Math.floor(absOffset / 60)).padStart(2, '0');
-      const minsOffset = String(absOffset % 60).padStart(2, '0');
-      const sign = offsetMinutes >= 0 ? '+' : '-';
-      const tzOffset = `${sign}${hoursOffset}:${minsOffset}`;
+      const tzOffset = getTimezoneOffset();
 
       const sbSchedule = {
         id: crypto.randomUUID(),
@@ -531,13 +525,14 @@ export function Loans() {
       if (uError) throw uError;
 
       // 2. Create standard schedule
+      const tzOffset = getTimezoneOffset();
       const { error: sError } = await supabase.from('schedules')
         .insert({
           professor_id: selectedRequest.professor_id,
           equipment_codes: preparationItems,
           scheduled_date: selectedRequest.scheduled_date,
-          start_time: `${selectedRequest.scheduled_date}T${selectedRequest.start_time}:00Z`,
-          return_deadline: selectedRequest.return_deadline ? `${selectedRequest.scheduled_date}T${selectedRequest.return_deadline}:00Z` : null,
+          start_time: `${selectedRequest.scheduled_date}T${selectedRequest.start_time}:00${tzOffset}`,
+          return_deadline: selectedRequest.return_deadline ? `${selectedRequest.scheduled_date}T${selectedRequest.return_deadline}:00${tzOffset}` : null,
           status: 'pending',
           created_by: user?.name
         });
@@ -601,110 +596,111 @@ export function Loans() {
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-7xl mx-auto space-y-12"
+      className="max-w-7xl mx-auto space-y-8 md:space-y-12 px-2 md:px-0"
     >
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
-        <div>
-          <h1 className="text-5xl font-black tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 md:gap-8 mb-6 md:mb-12">
+        <div className="text-center lg:text-left">
+          <h1 className="text-2xl md:text-5xl font-black tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-emerald-600">
             Monitoria SESI
           </h1>
-          <p className="text-slate-500 font-medium mt-2 flex items-center gap-2">
-            <span className="size-2 bg-emerald-500 rounded-full animate-pulse" />
-            Sistema Ativo • Gestão de Empréstimos e Devoluções
+          <p className="text-slate-500 font-medium mt-1 md:mt-2 flex items-center justify-center lg:justify-start gap-2 text-[10px] md:text-sm">
+            <span className="size-1.5 md:size-2 bg-emerald-500 rounded-full animate-pulse" />
+            Sistema Ativo • Gestão de Ativos
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="grid grid-cols-2 lg:flex items-center gap-2 md:gap-4">
           <button 
             onClick={() => setIsScheduleModalOpen(true)}
-            className="group relative flex items-center gap-3 bg-white border border-slate-200 text-slate-900 px-8 py-5 rounded-[2rem] font-black text-sm hover:bg-slate-50 transition-all shadow-lg"
+            className="group flex flex-col sm:flex-row items-center justify-center gap-1 md:gap-3 bg-white border border-slate-200 text-slate-900 px-4 md:px-8 py-3 md:py-5 rounded-xl md:rounded-[2rem] font-black text-[10px] md:text-sm hover:bg-slate-50 transition-all shadow-lg shadow-slate-200/50"
           >
-            <Calendar size={20} className="text-sesi-blue" />
-            <span>AGENDAR</span>
+            <Calendar size={18} className="text-amber-500" />
+            <span>AGENDA</span>
           </button>
           <button 
             onClick={() => setIsLoanModalOpen(true)}
-            className="group relative flex items-center gap-3 bg-slate-900 text-white px-10 py-5 rounded-[2rem] font-black text-sm shadow-2xl shadow-slate-900/20 hover:scale-105 transition-all overflow-hidden"
+            className="group relative flex flex-col sm:flex-row items-center justify-center gap-1 md:gap-3 bg-slate-900 text-white px-4 md:px-10 py-3 md:py-5 rounded-xl md:rounded-[2rem] font-black text-[10px] md:text-sm shadow-2xl shadow-slate-900/20 hover:scale-[1.02] transition-all overflow-hidden"
           >
-            <div className="absolute inset-0 bg-gradient-to-tr from-sesi-blue/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <Plus size={22} className="text-sesi-yellow" />
-            <span className="relative">NOVO EMPRÉSTIMO</span>
+            <Plus size={18} className="text-sesi-yellow" />
+            <span className="relative">NOVO</span>
           </button>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex gap-4 p-2 bg-slate-100/50 rounded-[2.5rem] w-fit border border-slate-200/50 mb-8">
-        {[
-          { id: 'ativos', label: 'Empréstimos Ativos', icon: ArrowDownCircle, color: 'text-sesi-blue' },
-          { id: 'agendamentos', label: 'Agendamentos', icon: Calendar, color: 'text-amber-500' },
-          { id: 'historico', label: 'Histórico', icon: History, color: 'text-slate-500' },
-          { id: 'solicitacoes', label: 'Solicitações', icon: Bell, color: 'text-rose-500' }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={cn(
-              "flex items-center gap-3 px-8 py-4 rounded-[2rem] text-sm font-black transition-all relative",
-              activeTab === tab.id 
-                ? "bg-white text-slate-900 shadow-xl shadow-slate-200/50 scale-105"
-                : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
-            )}
-          >
-            <tab.icon size={18} className={activeTab === tab.id ? tab.color : 'text-slate-400'} />
-            {tab.label}
-            {tab.id === 'solicitacoes' && teacherRequests.filter(r => r.status === 'pending').length > 0 && (
-              <span className="absolute -top-1 -right-1 size-5 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white animate-pulse">
-                {teacherRequests.filter(r => r.status === 'pending').length}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Navigation Tabs - Horizontal Scroll on Mobile */}
+      <div className="relative mb-6 md:mb-10">
+        <div className="flex overflow-x-auto pb-4 -mb-4 scrollbar-hide gap-2 md:gap-4 p-1.5 md:p-2 bg-slate-100/50 rounded-2xl md:rounded-[2.5rem] border border-slate-200/50">
+          {[
+            { id: 'ativos', label: 'Ativos', fullLabel: 'Ativos', icon: ArrowDownCircle, color: 'text-sesi-blue' },
+            { id: 'agendamentos', label: 'Agenda', fullLabel: 'Agenda', icon: Calendar, color: 'text-amber-500' },
+            { id: 'solicitacoes', label: 'Pedidos', fullLabel: 'Solicitações', icon: Bell, color: 'text-rose-500' },
+            { id: 'historico', label: 'Histórico', fullLabel: 'Histórico', icon: History, color: 'text-slate-500' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={cn(
+                "flex-none flex items-center gap-2 md:gap-3 px-4 md:px-8 py-2.5 md:py-4 rounded-xl md:rounded-[2rem] text-[10px] md:text-sm font-black transition-all relative whitespace-nowrap",
+                activeTab === tab.id 
+                  ? "bg-white text-slate-900 shadow-lg shadow-slate-200/60 scale-105"
+                  : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <tab.icon size={16} className={activeTab === tab.id ? tab.color : 'text-slate-400'} />
+              <span>{tab.fullLabel}</span>
+              {tab.id === 'solicitacoes' && teacherRequests.filter(r => r.status === 'pending').length > 0 && (
+                <span className="size-3 md:size-4 bg-rose-500 text-white text-[7px] md:text-[8px] flex items-center justify-center rounded-full">
+                  {teacherRequests.filter(r => r.status === 'pending').length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Grid of Dashboard Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-        <div className="lg:col-span-4 bg-white p-8 rounded-[3rem] border border-slate-200 shadow-xl shadow-slate-200/50 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-8">
-            <div className="size-16 rounded-[1.5rem] bg-emerald-50 text-emerald-500 flex items-center justify-center">
-              <History size={32} />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8 items-stretch">
+        <div className="lg:col-span-4 bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-slate-200 shadow-xl shadow-slate-200/40 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4 md:mb-8">
+            <div className="size-10 md:size-16 rounded-xl md:rounded-[1.5rem] bg-emerald-50 text-emerald-500 flex items-center justify-center">
+              <History size={24} />
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Empréstimos Ativos</p>
-              <h2 className="text-4xl font-black text-slate-900 leading-tight">{activeLoans.length}</h2>
+              <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Empréstimos Ativos</p>
+              <h2 className="text-2xl md:text-4xl font-black text-slate-900 leading-tight">{activeLoans.length}</h2>
             </div>
           </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-bold uppercase tracking-widest">Capacidade e Fluxo</span>
-              <span className="font-black text-sesi-blue">{(activeLoans.length / 50 * 100).toFixed(0)}%</span>
+          <div className="space-y-2 md:space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 font-bold uppercase tracking-widest text-[8px] md:text-[10px]">Fluxo</span>
+              <span className="font-black text-emerald-500 text-[10px] md:text-xs">{(activeLoans.length / 50 * 100).toFixed(0)}%</span>
             </div>
-            <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: `${(activeLoans.length / 50 * 100)}%` }}
-                className="h-full bg-gradient-to-r from-sesi-blue to-blue-400 rounded-full"
+                className="h-full bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)]"
               />
             </div>
           </div>
         </div>
 
-        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
           <div className="relative group">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-sesi-blue transition-colors" size={24} />
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-sesi-blue transition-colors" size={22} />
             <input 
               type="text" 
-              placeholder="Pesquisar registros..."
+              placeholder="Pesquisar..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-full pl-16 pr-8 py-8 bg-white border border-slate-200 rounded-[3rem] text-lg font-bold focus:ring-[12px] focus:ring-sesi-blue/5 focus:border-sesi-blue shadow-xl shadow-slate-200/50 transition-all outline-none"
+              className="w-full h-16 md:h-full pl-14 md:pl-16 pr-6 md:pr-8 py-5 md:py-8 bg-white border border-slate-200 rounded-2xl md:rounded-[3rem] text-sm md:text-lg font-bold focus:ring-[12px] focus:ring-sesi-blue/5 focus:border-sesi-blue shadow-xl shadow-slate-200/50 transition-all outline-none"
             />
           </div>
           
           <div className="relative group">
-            <Scan className="absolute left-6 top-1/2 -translate-y-1/2 text-sesi-blue" size={24} />
+            <Scan className="absolute left-6 top-1/2 -translate-y-1/2 text-sesi-blue" size={22} />
             <input 
               type="text"
-              placeholder="Devolução via Scanner..."
+              placeholder="Devolução Scanner..."
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   const val = (e.target as HTMLInputElement).value;
@@ -714,7 +710,7 @@ export function Loans() {
                   }
                 }
               }}
-              className="w-full h-full pl-16 pr-8 py-8 bg-sesi-blue text-white placeholder:text-white/40 border-none rounded-[3rem] text-lg font-black shadow-xl shadow-sesi-blue/30 focus:ring-[12px] focus:ring-sesi-blue/10 transition-all outline-none"
+              className="w-full h-16 md:h-full pl-14 md:pl-16 pr-6 md:pr-8 py-5 md:py-8 bg-sesi-blue text-white placeholder:text-white/40 border-none rounded-2xl md:rounded-[3rem] text-sm md:text-lg font-black shadow-xl shadow-sesi-blue/30 focus:ring-[12px] focus:ring-sesi-blue/10 transition-all outline-none"
             />
           </div>
         </div>
@@ -724,10 +720,10 @@ export function Loans() {
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-rose-50 text-rose-600 p-6 rounded-[2rem] flex items-center gap-4 border border-rose-100 shadow-lg shadow-rose-500/10"
+          className="bg-rose-50 text-rose-600 p-4 md:p-6 rounded-2xl md:rounded-[2rem] flex items-center gap-3 md:gap-4 border border-rose-100 shadow-lg shadow-rose-500/10"
         >
-          <AlertCircle size={24} />
-          <span className="text-base font-black">{error}</span>
+          <AlertCircle size={22} />
+          <span className="text-xs md:text-base font-black">{error}</span>
           <button onClick={() => setError('')} className="ml-auto hover:bg-rose-100 p-2 rounded-xl transition-colors"><X size={20} /></button>
         </motion.div>
       )}
@@ -736,39 +732,39 @@ export function Loans() {
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-emerald-50 text-emerald-600 p-6 rounded-[2rem] flex items-center gap-4 border border-emerald-100 shadow-lg shadow-emerald-500/10"
+          className="bg-emerald-50 text-emerald-600 p-4 md:p-6 rounded-2xl md:rounded-[2rem] flex items-center gap-3 md:gap-4 border border-emerald-100 shadow-lg shadow-emerald-500/10"
         >
-          <CheckCircle2 size={24} />
-          <span className="text-base font-black">{success}</span>
+          <CheckCircle2 size={22} />
+          <span className="text-xs md:text-base font-black">{success}</span>
           <button onClick={() => setSuccess('')} className="ml-auto hover:bg-emerald-100 p-2 rounded-xl transition-colors"><X size={20} /></button>
         </motion.div>
       )}
 
       {/* Main Grid Section */}
-      <div className="space-y-8 pt-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 md:space-y-8 pt-4 md:pt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="size-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg">
-              <ArrowDownCircle size={20} />
+            <div className="size-8 md:size-10 rounded-xl md:rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg">
+              <ArrowDownCircle size={18} />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              {activeTab === 'ativos' ? 'Fluxo de Saída' : activeTab === 'agendamentos' ? 'Agendamentos' : activeTab === 'solicitacoes' ? 'Solicitações de Professores' : 'Histórico de Registros'}
+            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+              {activeTab === 'ativos' ? 'Fluxo de Saída' : activeTab === 'agendamentos' ? 'Agendamentos' : activeTab === 'solicitacoes' ? 'Solicitações' : 'Histórico'}
             </h2>
           </div>
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3 md:gap-4">
              {(activeTab === 'agendamentos' || activeTab === 'solicitacoes') && (
                <div className="flex items-center gap-2">
-                 <span className="text-[10px] font-bold text-slate-400 uppercase">Filtro:</span>
+                 <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">Filtro:</span>
                  <input 
                    type="date"
                    value={selectedScheduleDate}
                    onChange={(e) => setSelectedScheduleDate(e.target.value)}
-                   className="px-4 py-2 bg-white border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm outline-none focus:ring-2 focus:ring-sesi-blue/20 cursor-pointer text-slate-600"
+                   className="px-3 md:px-4 py-1.5 md:py-2 bg-white border border-slate-200 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-sm outline-none focus:ring-2 focus:ring-sesi-blue/20 cursor-pointer text-slate-600"
                  />
                  {selectedScheduleDate && (
                    <button 
                      onClick={() => setSelectedScheduleDate('')}
-                     className="text-[10px] font-black text-rose-500 hover:text-rose-600 hover:underline uppercase tracking-widest transition-all"
+                     className="text-[9px] md:text-[10px] font-black text-rose-500 hover:text-rose-600 hover:underline uppercase tracking-widest transition-all"
                    >
                      Limpar
                    </button>
@@ -778,19 +774,19 @@ export function Loans() {
              {activeTab === 'historico' && history.length > 0 && (
                <button
                  onClick={handleClearHistory}
-                 className="px-4 py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2"
+                 className="px-3 md:px-4 py-1.5 md:py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2"
                >
                  <Trash2 size={14} />
-                 Limpar Histórico
+                 Limpar
                </button>
              )}
-             <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
+             <span className="text-[9px] md:text-xs font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-3 md:px-4 py-1.5 md:py-2 rounded-full shadow-sm">
                {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? (schedules || []).filter((s: any) => !selectedScheduleDate || s.scheduled_date === selectedScheduleDate).length : activeTab === 'solicitacoes' ? teacherRequests.filter(r => r.status === 'pending' && (!selectedScheduleDate || r.scheduled_date === selectedScheduleDate)).length : history.length} Registros
              </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-10">
           <AnimatePresence mode="popLayout">
             {activeTab === 'ativos' && filteredLoans.map((loan) => {
               const loanDate = new Date(loan.loanDate);
@@ -805,65 +801,65 @@ export function Loans() {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  className="relative bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-slate-200/60 overflow-hidden flex flex-col hover:border-sesi-blue/40 transition-all group"
+                  className="relative bg-white rounded-2xl md:rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden flex flex-col hover:border-sesi-blue/40 transition-all group"
                 >
-                  <div className="p-8 pb-6 flex items-start justify-between">
-                    <div className="flex items-center gap-5">
+                  <div className="p-4 md:p-8 pb-3 md:pb-6 flex items-start justify-between">
+                    <div className="flex items-center gap-3 md:gap-5">
                       <div className="relative">
-                        <div className="size-16 rounded-[2rem] bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-sesi-blue group-hover:text-white group-hover:border-sesi-blue transition-all duration-500 shadow-inner">
-                          <User size={32} />
+                        <div className="size-12 md:size-16 rounded-2xl md:rounded-[2rem] bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-sesi-blue group-hover:text-white group-hover:border-sesi-blue transition-all duration-500 shadow-inner">
+                          <User size={28} />
                         </div>
                         {isOld && (
-                          <div className="absolute -top-1 -right-1 size-5 bg-rose-500 rounded-full border-4 border-white animate-pulse shadow-md shadow-rose-500/40" />
+                          <div className="absolute -top-1 -right-1 size-4 md:size-5 bg-rose-500 rounded-full border-2 md:border-4 border-white animate-pulse shadow-md shadow-rose-500/40" />
                         )}
                       </div>
                       <div>
-                        <h4 className="font-black text-slate-900 text-xl tracking-tight leading-tight mb-1">{loan.beneficiaryName}</h4>
-                        <div className="flex items-center gap-2">
-                           <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                             <History size={10} />
-                             {formatDate(loan.loanDate)} às {new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                           </span>
-                           {loan.returnDeadline && (
-                             <span className="text-[10px] font-black text-sesi-blue uppercase tracking-widest flex items-center gap-1 bg-sesi-blue/10 px-2 py-0.5 rounded">
-                               <Clock size={10} />
-                               Prazo: {loan.returnDeadline}
-                             </span>
-                           )}
+                        <h4 className="font-black text-slate-900 text-lg md:text-xl tracking-tight leading-tight mb-0.5 md:mb-1">{loan.beneficiaryName}</h4>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 md:gap-2">
+                            <span className="text-[8px] md:text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1">
+                              <History size={10} />
+                              {formatDate(loan.loanDate)} {formatTime(loan.loanDate)}
+                            </span>
+                            {loan.returnDeadline && (
+                              <span className="text-[8px] md:text-[10px] font-black text-sesi-blue uppercase tracking-widest flex items-center gap-1 bg-sesi-blue/5 px-2 py-0.5 rounded w-fit">
+                                <Clock size={10} />
+                                Até {loan.returnDeadline}
+                              </span>
+                            )}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="px-8 pb-8 flex-1">
-                    <div className="mb-6 flex items-center justify-between">
-                      <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 rounded-xl">
+                  <div className="px-4 md:px-8 pb-4 md:pb-8 flex-1">
+                    <div className="mb-3 md:mb-6 flex items-center justify-between">
+                      <div className="flex items-center gap-2 px-2 md:px-3 py-1 bg-amber-50 rounded-lg md:rounded-xl">
                         <Laptop size={14} className="text-sesi-yellow" />
-                        <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">{loan.items.length} Itens out</span>
+                        <span className="text-[8px] md:text-[10px] font-black text-amber-700 uppercase tracking-widest">{loan.items.length} Itens</span>
                       </div>
                       <div className={cn(
-                        "flex items-center gap-2 px-3 py-1 rounded-xl",
+                        "flex items-center gap-2 px-2 md:px-3 py-1 rounded-lg md:rounded-xl",
                         isOld ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
                       )}>
-                        <span className="text-[10px] font-black uppercase tracking-widest">
-                          {isOld ? `${hoursOut}H ATRASADO` : `${minutesOut}min decorridos`}
+                        <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest">
+                          {isOld ? `${hoursOut}H ATRASADO` : `${minutesOut}min`}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5 md:gap-2">
                       {(loan.items || []).map(itemCode => {
                         const item = (notebooks || []).find(n => n.code === itemCode);
                         return (
-                          <div key={itemCode} className="group/item flex items-center gap-2 bg-slate-50 hover:bg-slate-100 px-4 py-2.5 rounded-[1.25rem] border border-slate-100 transition-all">
+                          <div key={itemCode} className="group/item flex items-center gap-1.5 md:gap-2 bg-slate-50 hover:bg-slate-100 px-3 md:px-4 py-1.5 md:py-2.5 rounded-lg md:rounded-[1.25rem] border border-slate-100 transition-all">
                             {item?.type === 'notebook' && <Laptop size={14} className="text-sesi-blue" />}
                             {item?.type === 'charger' && <Zap size={14} className="text-amber-500" />}
                             {item?.type === 'headphones' && <Headphones size={14} className="text-rose-500" />}
                             {item?.type === 'mouse' && <Mouse size={14} className="text-emerald-500" />}
-                            <span className="text-xs font-black font-mono text-slate-700">{itemCode}</span>
+                            <span className="text-[10px] md:text-xs font-black font-mono text-slate-700">{itemCode}</span>
                             <button 
                               onClick={() => handleReturnByCode(itemCode)}
-                              className="ml-1 text-slate-300 hover:text-rose-500 transition-colors"
+                              className="ml-0.5 text-slate-300 hover:text-rose-500 transition-colors"
                             >
                               <X size={14} />
                             </button>
@@ -873,19 +869,19 @@ export function Loans() {
                     </div>
                   </div>
 
-                  <div className="p-4 px-8 bg-slate-50/80 backdrop-blur-sm border-t border-slate-100 flex items-center justify-between mt-auto">
-                    <div className="flex items-center gap-3">
-                       <div className="size-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[10px] font-black text-slate-400">
+                  <div className="p-3 px-4 md:px-8 bg-slate-50/80 backdrop-blur-sm border-t border-slate-100 flex items-center justify-between mt-auto">
+                    <div className="flex items-center gap-2 md:gap-3">
+                       <div className="size-6 md:size-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[8px] md:text-[10px] font-black text-slate-400">
                          {loan.operatorName?.[0] || 'A'}
                        </div>
                        <div className="flex flex-col">
-                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Operador</span>
-                         <span className="text-[10px] font-bold text-slate-700 leading-none">{loan.operatorName}</span>
+                         <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Op</span>
+                         <span className="text-[9px] md:text-[10px] font-bold text-slate-700 leading-none">{loan.operatorName?.split(' ')[0]}</span>
                        </div>
                     </div>
                     <button 
                       onClick={() => handleReturnAll(loan)}
-                      className="px-6 py-3.5 bg-slate-900 text-white rounded-[1.5rem] text-[10px] font-black hover:bg-sesi-blue transition-all shadow-xl shadow-slate-900/10 flex items-center gap-2 group-hover:scale-105 active:scale-95"
+                      className="px-4 md:px-6 py-2 md:py-3.5 bg-slate-900 text-white rounded-xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-sesi-blue transition-all shadow-lg flex items-center gap-2 group-hover:scale-105"
                     >
                       <CheckCircle2 size={16} className="text-emerald-400" />
                       DEVOLVER TUDO
@@ -904,12 +900,12 @@ export function Loans() {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  className="bg-white rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-100 shadow-xl md:shadow-2xl shadow-slate-200/60 p-6 md:p-8 hover:border-amber-400/40 transition-all group"
+                  className="bg-white rounded-2xl md:rounded-[3.5rem] border border-slate-100 shadow-lg shadow-slate-200/40 p-5 md:p-8 hover:border-amber-400/40 transition-all group"
                 >
                   <div className="flex items-center justify-between mb-4 md:mb-6">
-                    <div className="flex items-center gap-4">
-                      <div className="size-12 md:size-14 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
-                        <Calendar size={24} md:size={28} />
+                    <div className="flex items-center gap-3">
+                      <div className="size-10 md:size-14 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
+                        <Calendar size={24} />
                       </div>
                       <div>
                         <h4 className="font-black text-slate-900 tracking-tight leading-none text-base md:text-lg">{prof?.name || 'Professor'}</h4>
@@ -924,7 +920,7 @@ export function Loans() {
                   <div className="space-y-3 md:space-y-4">
                     <div className="flex items-center justify-between text-[10px] md:text-xs">
                        <span className="font-bold text-slate-400 uppercase tracking-widest">Horário</span>
-                       <span className="font-black text-slate-900">{schedule.start_time ? new Date(schedule.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
+                       <span className="font-black text-slate-900">{formatTime(schedule.start_time)}</span>
                     </div>
                     <div className="flex items-center justify-between text-[10px] md:text-xs">
                        <span className="font-bold text-slate-400 uppercase tracking-widest">Equipamentos</span>
@@ -952,7 +948,7 @@ export function Loans() {
                       onClick={() => handleDeleteSchedule(schedule.id)}
                       className="size-12 md:size-14 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center shrink-0"
                     >
-                      <Trash2 size={16} md:size={20} />
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </motion.div>
@@ -968,20 +964,20 @@ export function Loans() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-slate-200/60 p-8 hover:border-rose-400/40 transition-all group"
+                className="bg-white rounded-2xl md:rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 p-4 md:p-8 hover:border-rose-400/40 transition-all group"
               >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className="size-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center">
-                      <Bell size={28} />
+                <div className="flex items-center justify-between mb-3 md:mb-6">
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="size-10 md:size-14 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center">
+                      <Bell size={24} />
                     </div>
                     <div>
-                      <h4 className="font-black text-slate-900 tracking-tight leading-none">{request.professor?.name || 'Professor'}</h4>
-                      <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Solicitação de Empréstimo</p>
+                      <h4 className="font-black text-slate-900 tracking-tight leading-none text-base md:text-lg">{request.professor?.name || 'Professor'}</h4>
+                      <p className="text-[9px] md:text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Solicitação</p>
                     </div>
                   </div>
                   <div className={cn(
-                    "px-3 py-1 rounded-lg text-[10px] font-black uppercase",
+                    "px-2 md:px-3 py-1 rounded-lg text-[9px] md:text-[10px] font-black uppercase",
                     request.status === 'pending' && 'bg-amber-100 text-amber-600',
                     request.status === 'approved' && 'bg-emerald-100 text-emerald-600',
                     request.status === 'rejected' && 'bg-rose-100 text-rose-600'
@@ -992,35 +988,35 @@ export function Loans() {
                   </div>
                 </div>
                 
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between text-xs">
+                <div className="space-y-3 md:space-y-4">
+                  <div className="flex items-center justify-between text-[10px] md:text-xs">
                      <span className="font-bold text-slate-400 uppercase tracking-widest">Data/Hora</span>
                      <span className="font-black text-slate-900">
                        {formatDate(request.scheduled_date)} • {request.start_time}
                      </span>
                   </div>
                   {request.destination && (
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-[10px] md:text-xs">
                        <span className="font-bold text-slate-400 uppercase tracking-widest">Destino</span>
-                       <span className="font-black text-sesi-orange truncate max-w-[150px]">{request.destination}</span>
+                       <span className="font-black text-sesi-orange truncate max-w-[120px] md:max-w-[150px]">{request.destination}</span>
                     </div>
                   )}
                   {request.observations && (
-                    <div className="mt-2 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Observação</span>
-                      <p className="text-[10px] text-slate-600 leading-normal font-bold italic">"{request.observations}"</p>
+                    <div className="mt-2 p-2.5 md:p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                      <span className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Obs</span>
+                      <p className="text-[9px] md:text-[10px] text-slate-600 leading-normal font-bold italic truncate md:whitespace-normal">"{request.observations}"</p>
                     </div>
                   )}
                   <div className="space-y-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens Solicitados</span>
-                    <div className="flex flex-wrap gap-2">
+                    <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens</span>
+                    <div className="flex flex-wrap gap-1.5 md:gap-2">
                       {Object.keys(request.requested_items).map(type => {
                         const qty = (request.requested_items as any)[type];
                         if (qty === 0) return null;
                         return (
-                          <div key={type} className="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center gap-2">
-                            <span className="size-2 rounded-full bg-sesi-blue" />
-                            <span className="text-[10px] font-black text-slate-700 uppercase">{qty}x {type}</span>
+                          <div key={type} className="px-2 md:px-3 py-1 md:py-1.5 bg-slate-50 border border-slate-100 rounded-lg md:rounded-xl flex items-center gap-1.5 md:gap-2">
+                            <span className="size-1.5 md:size-2 rounded-full bg-sesi-blue" />
+                            <span className="text-[9px] md:text-[10px] font-black text-slate-700 uppercase">{qty}x {type}</span>
                           </div>
                         );
                       })}
@@ -1029,16 +1025,16 @@ export function Loans() {
                 </div>
 
                 {request.status === 'pending' && (
-                  <div className="mt-8 flex gap-3">
+                  <div className="mt-6 md:mt-8 flex gap-2 md:gap-3">
                     <button 
                       onClick={() => handleOpenPrepare(request)}
-                      className="flex-1 py-4 bg-sesi-blue text-white rounded-[1.5rem] text-[10px] font-black hover:bg-sesi-blue/90 transition-all shadow-lg shadow-sesi-blue/20"
+                      className="flex-1 py-3 md:py-4 bg-sesi-blue text-white rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-sesi-blue/90 transition-all shadow-lg shadow-sesi-blue/20"
                     >
                       PREPARAR KIT
                     </button>
                     <button 
                       onClick={() => handleRejectRequest(request)}
-                      className="px-6 py-4 bg-slate-100 text-slate-400 rounded-[1.5rem] text-[10px] font-black hover:bg-rose-50 hover:text-rose-500 transition-all"
+                      className="px-4 md:px-6 py-3 md:py-4 bg-slate-100 text-slate-400 rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-rose-50 hover:text-rose-500 transition-all"
                     >
                       X
                     </button>
@@ -1051,77 +1047,81 @@ export function Loans() {
                <motion.div 
                  key={loan.id}
                  layout
-                 className="bg-white/50 backdrop-blur-sm rounded-[2.5rem] border border-slate-100 p-6 flex items-center justify-between group"
+                 className="bg-white/50 backdrop-blur-sm rounded-2xl md:rounded-[2.5rem] border border-slate-100 p-4 md:p-6 flex items-center justify-between group"
                >
-                 <div className="flex items-center gap-4">
-                   <div className="size-12 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center">
-                     <History size={24} />
+                 <div className="flex items-center gap-3 md:gap-4">
+                   <div className="size-10 md:size-12 rounded-xl md:rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center">
+                     <History size={22} />
                    </div>
                    <div>
-                     <h4 className="font-bold text-slate-900 leading-none">{loan.beneficiaryName}</h4>
-                     <p className="text-[10px] text-slate-400 font-medium mt-1">Devolvido em {loan.returnDate ? new Date(loan.returnDate).toLocaleDateString() : 'N/A'}</p>
+                     <h4 className="font-bold text-slate-900 leading-none text-xs md:text-sm">{loan.beneficiaryName}</h4>
+                     <p className="text-[9px] md:text-[10px] text-slate-400 font-medium mt-1">Devolvido em {formatDate(loan.returnDate)} às {formatTime(loan.returnDate)}</p>
                    </div>
                  </div>
                  <div className="text-right">
-                   <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-1">{loan.items.length} Itens</span>
-                   <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[8px] font-black uppercase">Concluído</span>
+                   <span className="text-[9px] md:text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-1">{loan.items.length} Itens</span>
+                   <span className="px-2 md:px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[7px] md:text-[8px] font-black uppercase">Concluído</span>
                  </div>
                </motion.div>
             ))}
           </AnimatePresence>
           
           {((activeTab === 'ativos' && activeLoans.length === 0) || 
-            (activeTab === 'agendamentos' && schedules.length === 0) ||
-            (activeTab === 'solicitacoes' && teacherRequests.length === 0) ||
+            (activeTab === 'agendamentos' && (schedules || []).length === 0) ||
+            (activeTab === 'solicitacoes' && (teacherRequests || []).length === 0) ||
             (activeTab === 'historico' && history.length === 0)) && (
-            <div className="col-span-full py-40 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[4rem] border-2 border-dashed border-slate-100 shadow-inner">
-               <div className="size-32 bg-slate-50 rounded-[3rem] flex items-center justify-center mb-8 shadow-xl">
-                 <History size={64} className="opacity-10" />
+            <div className="col-span-full py-20 md:py-40 flex flex-col items-center justify-center text-slate-300 bg-white rounded-3xl md:rounded-[4rem] border-2 border-dashed border-slate-100 shadow-inner px-6 text-center">
+               <div className="size-20 md:size-32 bg-slate-50 rounded-2xl md:rounded-[3rem] flex items-center justify-center mb-6 md:mb-8 shadow-xl">
+                 <History size={48} className="opacity-10" />
                </div>
-               <h2 className="text-3xl font-black text-slate-900 tracking-tight">Vazio por enquanto</h2>
-               <p className="text-sm text-slate-400 mt-2 font-medium">Não há registros nesta categoria.</p>
+               <h2 className="text-xl md:text-3xl font-black text-slate-900 tracking-tight">Vazio por enquanto</h2>
+               <p className="text-xs md:text-sm text-slate-400 mt-2 font-medium">Não há registros nesta categoria.</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Loan Modal */}
+{/* Loan Modal */}
       {isLoanModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
-            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div>
-                <h3 className="text-2xl font-black text-slate-900">Novo Empréstimo <span className="text-sesi-blue bg-sesi-blue/10 px-2 py-0.5 rounded text-xs">[v2.3]</span></h3>
-                <p className="text-sm text-slate-500 font-medium">Selecione a pessoa ou local e os notebooks para saída.</p>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-0 md:p-4 animate-in fade-in duration-300">
+          <div className="relative w-full max-w-7xl h-[100dvh] md:h-[90vh] bg-white rounded-none md:rounded-[3.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <div className="p-6 md:p-10 lg:p-12 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-4 md:gap-6">
+                <div className="size-12 md:size-16 bg-sesi-yellow text-slate-900 rounded-2xl md:rounded-[2rem] flex items-center justify-center shadow-2xl shadow-sesi-yellow/30">
+                  <ArrowDownCircle size={28} />
+                </div>
+                <div>
+                  <h2 className="text-xl md:text-3xl font-black text-slate-900 tracking-tight">Novo Empréstimo</h2>
+                  <p className="text-[10px] md:text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Gestão de Ativos • Monitoria</p>
+                </div>
               </div>
               <button 
                 onClick={() => {
                   setIsLoanModalOpen(false);
                   setSelectedItems([]);
                   setSelectedBeneficiaryId('');
-                  setRangeStart(null);
-                }} 
-                className="size-12 bg-white border border-slate-200 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all shadow-sm"
+                }}
+                className="size-10 md:size-12 rounded-xl md:rounded-2xl bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 hover:border-rose-100 transition-all"
               >
-                <X size={24} />
+                <X size={22} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                {/* Left Column: Selection */}
-                <div className="lg:col-span-7 space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Beneficiary Selection */}
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
+              <div className="flex flex-col lg:grid lg:grid-cols-12 h-full">
+                {/* Left Column: Form and Selection */}
+                <div className="lg:col-span-7 p-4 md:p-10 lg:p-12 space-y-6 md:space-y-12">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                     <div className="space-y-3">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                         <User size={14} className="text-sesi-blue" />
-                        Pessoa ou Local Responsável
+                        Pessoa ou Local
                       </label>
                       <select 
                         value={selectedBeneficiaryId}
                         onChange={(e) => setSelectedBeneficiaryId(e.target.value)}
-                        className="w-full h-16 px-6 bg-slate-50 border-slate-100 rounded-[1.25rem] focus:ring-4 focus:ring-sesi-blue/10 outline-none transition-all font-bold text-slate-700 appearance-none"
+                        className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-sesi-blue/10 outline-none transition-all font-bold text-slate-700"
                       >
                         <option value="">Selecione...</option>
                          {beneficiaries.map(b => (
@@ -1140,7 +1140,7 @@ export function Loans() {
                         type="time"
                         value={returnDeadline}
                         onChange={(e) => setReturnDeadline(e.target.value)}
-                        className="w-full h-16 px-6 bg-slate-50 border-slate-100 rounded-[1.25rem] focus:ring-4 focus:ring-sesi-blue/10 outline-none transition-all font-bold text-slate-700"
+                        className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-sesi-blue/10 outline-none transition-all font-bold text-slate-700"
                       />
                     </div>
 
@@ -1162,7 +1162,7 @@ export function Loans() {
                             }
                           }}
                           placeholder="Ex: NB01 ou NB01-NB10"
-                          className="w-full h-16 pl-6 pr-16 bg-slate-50 border-slate-100 rounded-[1.25rem] focus:ring-4 focus:ring-sesi-blue/10 outline-none transition-all font-mono font-black text-slate-700"
+                          className="w-full h-14 md:h-16 pl-6 pr-16 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-sesi-blue/10 outline-none transition-all font-mono font-black text-slate-700"
                         />
                         <button 
                           onClick={() => handleAddItem(scannedCode)}
@@ -1291,7 +1291,7 @@ export function Loans() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 p-5 bg-slate-50 rounded-[2rem] border border-slate-100 max-h-[40vh] overflow-y-auto">
+                    <div className="flex overflow-x-auto pb-4 -mb-4 scrollbar-hide grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 p-4 md:p-5 bg-slate-50 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 max-h-[35vh] md:max-h-[40vh] overflow-y-auto">
                       {modalItems.map(nb => {
                         const isLoaned = nb.status === 'loaned';
                         const isSelected = selectedItems.includes(nb.code);
@@ -1334,8 +1334,8 @@ export function Loans() {
                 </div>
 
                 {/* Right Column: Selected Items List */}
-                <div className="lg:col-span-5 flex flex-col bg-slate-50 rounded-[2.5rem] border border-slate-100 overflow-hidden">
-                  <div className="p-6 border-b border-slate-200 bg-white/50 flex items-center justify-between">
+                <div className="lg:col-span-5 flex flex-col bg-slate-50 rounded-none lg:rounded-[2.5rem] border-t lg:border border-slate-100 overflow-hidden">
+                  <div className="p-4 md:p-6 border-b border-slate-200 bg-white/50 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <h3 className="text-lg font-black text-slate-900">Itens na Lista</h3>
                       <span className="px-3 py-1 bg-sesi-yellow text-slate-900 text-[10px] font-black rounded-lg">
@@ -1399,17 +1399,17 @@ export function Loans() {
               </div>
             </div>
 
-            <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="size-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400">
-                  <User size={24} />
+            <div className="mt-auto p-4 md:p-8 bg-slate-50 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
+              <div className="hidden md:flex items-center gap-4">
+                <div className="size-10 md:size-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                  <User size={22} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Operador Responsável</p>
-                  <p className="text-sm font-bold text-slate-900">{user?.name}</p>
+                  <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Operador Responsável</p>
+                  <p className="text-xs md:text-sm font-bold text-slate-900">{user?.name}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto">
                 <button 
                   onClick={() => {
                     setIsLoanModalOpen(false);
@@ -1417,17 +1417,17 @@ export function Loans() {
                     setSelectedBeneficiaryId('');
                     setRangeStart(null);
                   }}
-                  className="px-8 py-4 bg-white text-slate-600 font-black rounded-2xl border border-slate-200 hover:bg-slate-100 transition-all"
+                  className="flex-1 md:flex-none px-6 md:px-8 py-3.5 md:py-4 bg-white text-slate-600 font-black rounded-xl md:rounded-2xl border border-slate-200 hover:bg-slate-100 transition-all text-xs md:text-sm"
                 >
                   CANCELAR
                 </button>
                 <button 
                   onClick={handleConfirmLoan}
                   disabled={!selectedBeneficiaryId || selectedItems.length === 0}
-                  className="px-12 py-4 bg-sesi-blue text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-sesi-blue/20 disabled:opacity-20 disabled:cursor-not-allowed flex items-center gap-3"
+                  className="flex-1 md:flex-none px-8 md:px-12 py-3.5 md:py-4 bg-sesi-blue text-white font-black rounded-xl md:rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-sesi-blue/20 disabled:opacity-20 disabled:cursor-not-allowed flex items-center justify-center gap-2 md:gap-3 text-xs md:text-sm"
                 >
                   <Check size={20} />
-                  CONFIRMAR EMPRÉSTIMO
+                  CONFIRMAR
                 </button>
               </div>
             </div>
@@ -1438,7 +1438,7 @@ export function Loans() {
       {/* Prepare Request Modal */}
       <AnimatePresence>
         {isPrepareModalOpen && selectedRequest && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-end p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-end p-0 md:p-6">
             <motion.div 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
@@ -1452,227 +1452,232 @@ export function Loans() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="relative w-full max-w-5xl h-full bg-white rounded-[4rem] shadow-2xl flex flex-col overflow-hidden"
+              className="relative w-full max-w-5xl h-[100dvh] md:h-full bg-white rounded-none md:rounded-[4rem] shadow-2xl flex flex-col overflow-hidden"
             >
-              <div className="p-12 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <div className="flex items-center gap-6">
-                  <div className="size-16 bg-sesi-blue text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-sesi-blue/30">
-                    <Laptop size={32} />
+              <div className="p-4 md:p-10 lg:p-12 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-3 md:gap-6">
+                  <div className="size-10 md:size-16 bg-sesi-blue text-white rounded-xl md:rounded-[2rem] flex items-center justify-center shadow-xl shadow-sesi-blue/20">
+                    <Laptop size={24} />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Preparar Solicitação</h2>
-                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">
+                    <h2 className="text-lg md:text-3xl font-black text-slate-900 tracking-tight">Preparar Kit</h2>
+                    <p className="text-[9px] md:text-sm font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                       {selectedRequest.professor?.name} • {selectedRequest.start_time?.slice(0, 5)}
                     </p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setIsPrepareModalOpen(false)} 
-                  className="size-14 bg-white text-slate-400 rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all shadow-md group"
+                  className="size-10 md:size-14 bg-white text-slate-400 rounded-xl md:rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all border border-slate-100"
                 >
-                  <X size={24} className="group-hover:rotate-90 transition-transform" />
+                  <X size={22} />
                 </button>
               </div>
 
-              <div className="flex-1 flex overflow-hidden">
-                {/* Left side: Item Selection */}
-                <div className="w-2/3 p-12 overflow-y-auto custom-scrollbar border-r border-slate-50">
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="flex gap-4">
-                      {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => setActivePreparationType(type)}
-                          className={cn(
-                            "px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all",
-                            activePreparationType === type 
-                              ? "bg-sesi-blue text-white shadow-lg shadow-sesi-blue/20" 
-                              : "bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                          )}
-                        >
-                          {type}s ({(selectedRequest.requested_items as any)[type]})
-                        </button>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        const requestedQty = (selectedRequest.requested_items as any)[activePreparationType] || 0;
-                        const currentlySelectedCount = preparationItems.filter(code => {
-                          const item = notebooks.find(n => n.code === code);
-                          return item?.type === activePreparationType;
-                        }).length;
-                        
-                        const qtyToSelect = Math.max(0, requestedQty - currentlySelectedCount);
-                        
-                        if (qtyToSelect <= 0) return;
-
-                        const available = notebooks
-                          .filter(n => n.type === activePreparationType && n.status === 'available' && !preparationItems.includes(n.code))
-                          .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true}))
-                          .slice(0, qtyToSelect);
-                        
-                        setPreparationItems(prev => [...prev, ...available.map(n => n.code)]);
-                      }}
-                      className="px-6 py-3 bg-sesi-orange text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-sesi-orange/20 hover:scale-105 transition-all"
-                    >
-                      Selecionar Automático
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-4">
-                    {notebooks
-                      .filter(n => n.type === activePreparationType && n.status === 'available')
-                      .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}))
-                      .map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            if (rangeStart) {
-                              const availableForCurrentType = notebooks
-                                .filter(n => n.type === activePreparationType && n.status === 'available')
-                                .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}));
-                              const allCodes = availableForCurrentType.map(n => n.code);
-                              const startIndex = allCodes.indexOf(rangeStart);
-                              const endIndex = allCodes.indexOf(item.code);
-                              const start = Math.min(startIndex, endIndex);
-                              const end = Math.max(startIndex, endIndex);
-                              const rangeCodes = allCodes.slice(start, end + 1);
-                              setPreparationItems(prev => Array.from(new Set([...prev, ...rangeCodes])));
-                              setRangeStart(null);
-                            } else {
-                              if (preparationItems.includes(item.code)) {
-                                setPreparationItems(prev => prev.filter(c => c !== item.code));
-                              } else {
-                                setPreparationItems(prev => [...prev, item.code]);
-                              }
-                            }
-                          }}
-                          onDoubleClick={() => setRangeStart(item.code)}
-                          className={cn(
-                            "group p-3 md:p-4 rounded-2xl md:rounded-3xl border-2 transition-all text-left",
-                            preparationItems.includes(item.code)
-                              ? "bg-sesi-blue border-sesi-blue text-white shadow-xl shadow-sesi-blue/20"
-                              : rangeStart === item.code
-                                ? "border-sesi-blue ring-4 ring-sesi-blue/10 scale-105 z-10"
-                                : "bg-white border-slate-100 hover:border-sesi-blue/50 text-slate-600"
-                          )}
-                        >
-                          <div className={cn(
-                            "size-8 md:size-10 rounded-xl mb-2 md:mb-3 flex items-center justify-center transition-colors",
-                            preparationItems.includes(item.code) ? "bg-white/20" : "bg-slate-50 group-hover:bg-sesi-blue/10"
-                          )}>
-                            {item.type === 'notebook' && <Laptop size={16} md:size={18} />}
-                            {item.type === 'mouse' && <Mouse size={16} md:size={18} />}
-                            {item.type === 'charger' && <Zap size={16} md:size={18} />}
-                            {item.type === 'headphones' && <Headphones size={16} md:size={18} />}
-                          </div>
-                          <div className="font-black text-[10px] md:text-sm tracking-tight">{item.code}</div>
-                        </button>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Right side: Summary */}
-                <div className="w-1/3 p-12 bg-slate-50/50 flex flex-col">
-                  <div className="flex-1">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-8">Resumo da Preparação</h3>
-                    
-                    <div className="space-y-6">
-                      {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => {
-                         const requested = (selectedRequest.requested_items as any)[type];
-                         const selected = preparationItems.filter(code => {
-                           const item = notebooks.find(n => n.code === code);
-                           return item?.type === type;
-                         }).length;
-                         
-                         return (
-                           <div key={type} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                             <div className="flex items-center justify-between mb-2 text-[10px] font-black uppercase tracking-widest">
-                               <span className="text-slate-400">{type}s</span>
-                               <span className={cn(selected >= requested ? "text-emerald-500" : "text-amber-500")}>
-                                 {selected}/{requested}
-                               </span>
-                             </div>
-                             <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
-                               <div 
-                                 className={cn("h-full transition-all", selected >= requested ? "bg-emerald-500" : "bg-amber-500")}
-                                 style={{ width: `${Math.min(100, (selected / requested) * 100)}%` }}
-                               />
-                             </div>
-                           </div>
-                         );
-                      })}
-                    </div>
-
-                    <div className="mt-12 space-y-4">
-                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens Selecionados ({preparationItems.length})</label>
-                       <div className="flex flex-wrap gap-2">
-                         {preparationItems.map(code => (
-                           <span key={code} className="px-3 py-1 bg-white border border-slate-100 rounded-lg text-[10px] font-black font-mono shadow-sm">
-                             {code}
-                           </span>
-                         ))}
-                       </div>
-                    </div>
+            <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto scrollbar-hide">
+              {/* Left side: Item Selection */}
+              <div className="w-full lg:w-2/3 p-4 md:p-10 lg:p-12 border-b lg:border-r lg:border-b-0 border-slate-100">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                  <div className="flex flex-wrap gap-2 md:gap-4">
+                    {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setActivePreparationType(type)}
+                        className={cn(
+                          "px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all",
+                          activePreparationType === type 
+                            ? "bg-sesi-blue text-white shadow-lg shadow-sesi-blue/20" 
+                            : "bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 border border-slate-100"
+                        )}
+                      >
+                        {type}s ({(selectedRequest.requested_items as any)[type]})
+                      </button>
+                    ))}
                   </div>
 
                   <button
-                    onClick={handleConfirmPrepare}
-                    disabled={preparationItems.length === 0}
-                    className="w-full h-20 bg-emerald-500 text-white rounded-[2rem] font-black text-lg shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 disabled:grayscale active:scale-95 flex items-center justify-center gap-4"
+                    onClick={() => {
+                      const requestedQty = (selectedRequest.requested_items as any)[activePreparationType] || 0;
+                      const currentlySelectedCount = preparationItems.filter(code => {
+                        const item = notebooks.find(n => n.code === code);
+                        return item?.type === activePreparationType;
+                      }).length;
+                      
+                      const qtyToSelect = Math.max(0, requestedQty - currentlySelectedCount);
+                      
+                      if (qtyToSelect <= 0) return;
+
+                      const available = notebooks
+                        .filter(n => n.type === activePreparationType && n.status === 'available' && !preparationItems.includes(n.code))
+                        .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true}))
+                        .slice(0, qtyToSelect);
+                      
+                      setPreparationItems(prev => [...prev, ...available.map(n => n.code)]);
+                    }}
+                    className="w-full md:w-auto px-6 py-3 bg-sesi-orange text-white rounded-xl md:rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-sesi-orange/20 hover:scale-105 transition-all text-center"
                   >
-                    FINALIZAR PREPARAÇÃO
-                    <Check size={24} />
+                    Selecionar Automático
                   </button>
                 </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
-      <AnimatePresence>
-        {isScheduleModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
-            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white">
-              <div>
-                <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                  <Calendar className="text-amber-500" />
-                  Agendar Reserva <span className="text-amber-500 bg-amber-50 px-2 py-0.5 rounded text-xs">NOVO</span>
-                </h3>
-                <p className="text-sm text-slate-500 font-medium">Reserve equipamentos para uso futuro hoje ou em outra data.</p>
-              </div>
-              <button 
-                onClick={() => {
-                  setIsScheduleModalOpen(false);
-                setSelectedItems([]);
-                setSelectedBeneficiaryId('');
-                setReturnDeadline('');
-                setStartTime('');
-                }} 
-                className="size-12 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-8">
-               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                <div className="lg:col-span-7 space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <User size={14} className="text-amber-500" />
-                        Professor Responsável
-                      </label>
-                      <select 
-                        value={selectedBeneficiaryId}
-                        onChange={(e) => setSelectedBeneficiaryId(e.target.value)}
-                        className="w-full h-16 px-6 bg-slate-50 border-slate-100 rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700 appearance-none"
+                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-4 gap-2 md:gap-4">
+                  {notebooks
+                    .filter(n => n.type === activePreparationType && n.status === 'available')
+                    .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}))
+                    .map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          if (rangeStart) {
+                            const availableForCurrentType = notebooks
+                              .filter(n => n.type === activePreparationType && n.status === 'available')
+                              .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}));
+                            const allCodes = availableForCurrentType.map(n => n.code);
+                            const startIndex = allCodes.indexOf(rangeStart);
+                            const endIndex = allCodes.indexOf(item.code);
+                            const start = Math.min(startIndex, endIndex);
+                            const end = Math.max(startIndex, endIndex);
+                            const rangeCodes = allCodes.slice(start, end + 1);
+                            setPreparationItems(prev => Array.from(new Set([...prev, ...rangeCodes])));
+                            setRangeStart(null);
+                          } else {
+                            if (preparationItems.includes(item.code)) {
+                              setPreparationItems(prev => prev.filter(c => c !== item.code));
+                            } else {
+                              setPreparationItems(prev => [...prev, item.code]);
+                            }
+                          }
+                        }}
+                        onDoubleClick={() => setRangeStart(item.code)}
+                        className={cn(
+                          "group p-3 rounded-2xl md:rounded-3xl border-2 transition-all text-left",
+                          preparationItems.includes(item.code)
+                            ? "bg-sesi-blue border-sesi-blue text-white shadow-xl shadow-sesi-blue/20"
+                            : rangeStart === item.code
+                              ? "border-sesi-blue ring-4 ring-sesi-blue/10 scale-105 z-10"
+                              : "bg-white border-slate-100 hover:border-sesi-blue/50 text-slate-600"
+                        )}
                       >
-                        <option value="">Selecione o professor...</option>
+                        <div className={cn(
+                          "size-8 rounded-xl mb-2 flex items-center justify-center transition-colors",
+                          preparationItems.includes(item.code) ? "bg-white/20" : "bg-slate-50 group-hover:bg-sesi-blue/10"
+                        )}>
+                          {item.type === 'notebook' && <Laptop size={14} />}
+                          {item.type === 'mouse' && <Mouse size={14} />}
+                          {item.type === 'charger' && <Zap size={14} />}
+                          {item.type === 'headphones' && <Headphones size={14} />}
+                        </div>
+                        <div className="font-black text-[9px] md:text-xs tracking-tight">{item.code}</div>
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Right side: Summary */}
+              <div className="w-full lg:w-1/3 p-4 md:p-10 lg:p-12 bg-slate-50/50 flex flex-col">
+                <div className="flex-1">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 md:mb-8">Resumo da Preparação</h3>
+                  
+                  <div className="space-y-4 md:space-y-6">
+                    {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => {
+                       const requested = (selectedRequest.requested_items as any)[type];
+                       const selected = preparationItems.filter(code => {
+                         const item = notebooks.find(n => n.code === code);
+                         return item?.type === type;
+                       }).length;
+                       
+                       return (
+                         <div key={type} className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-100">
+                           <div className="flex items-center justify-between mb-2 text-[10px] font-black uppercase tracking-widest">
+                             <span className="text-slate-400">{type}s</span>
+                             <span className={cn(selected >= requested ? "text-emerald-500" : "text-amber-500")}>
+                               {selected}/{requested}
+                             </span>
+                           </div>
+                           <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
+                             <div 
+                               className={cn("h-full transition-all", selected >= requested ? "bg-emerald-500" : "bg-amber-500")}
+                               style={{ width: `${Math.min(100, (selected / requested) * 100)}%` }}
+                             />
+                           </div>
+                         </div>
+                       );
+                    })}
+                  </div>
+
+                  <div className="mt-8 md:mt-12 space-y-3 md:space-y-4">
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens Selecionados ({preparationItems.length})</label>
+                     <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto">
+                       {preparationItems.map(code => (
+                         <span key={code} className="px-2 md:px-3 py-1 bg-white border border-slate-100 rounded-lg text-[9px] md:text-[10px] font-black font-mono shadow-sm">
+                           {code}
+                         </span>
+                       ))}
+                       {preparationItems.length === 0 && <p className="text-[10px] font-bold text-slate-300 italic">Nenhum item selecionado</p>}
+                     </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleConfirmPrepare}
+                  disabled={preparationItems.length === 0}
+                  className="w-full h-14 md:h-20 mt-4 lg:mt-0 bg-emerald-500 text-white rounded-xl md:rounded-[2rem] font-black text-base md:text-lg shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center gap-3"
+                >
+                  FINALIZAR
+                  <Check size={22} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+
+    <AnimatePresence>
+      {isScheduleModalOpen && (
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-0 md:p-4 animate-in fade-in duration-300">
+        <div className="bg-white w-full max-w-5xl h-[100dvh] md:h-auto md:max-h-[95vh] rounded-none md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+          <div className="p-4 md:p-8 border-b border-slate-100 flex items-center justify-between bg-white text-center md:text-left">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="size-10 md:size-12 bg-amber-50 text-amber-500 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0">
+                <Calendar size={22} />
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg md:text-2xl font-black text-slate-900 leading-tight">
+                  Agendar Reserva
+                </h3>
+                <p className="text-[9px] md:text-sm text-slate-500 font-medium">Reserve itens para o futuro.</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setIsScheduleModalOpen(false);
+              setSelectedItems([]);
+              setSelectedBeneficiaryId('');
+              setReturnDeadline('');
+              setStartTime('');
+              }} 
+              className="size-10 md:size-12 bg-slate-50 text-slate-400 rounded-xl md:rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all border border-slate-100"
+            >
+              <X size={22} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-hide">
+             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
+              <div className="lg:col-span-7 space-y-5 md:space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <User size={14} className="text-amber-500" />
+                      Professor Responsável
+                    </label>
+                    <select 
+                      value={selectedBeneficiaryId}
+                      onChange={(e) => setSelectedBeneficiaryId(e.target.value)}
+                      className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-sm md:text-base text-slate-700"
+                    >
+                      <option value="">Selecione o professor...</option>
                         {beneficiaries.filter(b => b.type === 'professor').map(b => (
                           <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
@@ -1680,7 +1685,7 @@ export function Loans() {
                     </div>
 
                     <div className="space-y-3">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                         <Clock size={14} className="text-amber-500" />
                         Horário de Retirada
                       </label>
@@ -1688,12 +1693,12 @@ export function Loans() {
                         type="time"
                         value={startTime}
                         onChange={(e) => setStartTime(e.target.value)}
-                        className="w-full h-16 px-6 bg-slate-50 border-slate-100 rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700"
+                        className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700"
                       />
                     </div>
 
                     <div className="space-y-3">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                         <Clock size={14} className="text-amber-500" />
                         Prazo de Devolução (Opcional)
                       </label>
@@ -1701,7 +1706,7 @@ export function Loans() {
                         type="time"
                         value={returnDeadline}
                         onChange={(e) => setReturnDeadline(e.target.value)}
-                        className="w-full h-16 px-6 bg-slate-50 border-slate-100 rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700"
+                        className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700"
                       />
                     </div>
                   </div>
@@ -1758,8 +1763,8 @@ export function Loans() {
                 </div>
 
                 {/* Right Column: Summary */}
-                <div className="lg:col-span-5 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col shadow-inner overflow-hidden">
-                  <div className="p-8 flex-1">
+                <div className="lg:col-span-5 bg-slate-50 rounded-2xl md:rounded-[2.5rem] border border-slate-100 flex flex-col shadow-inner overflow-hidden">
+                  <div className="p-4 md:p-8 flex-1">
                     <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Resumo do Agendamento</h4>
                     <div className="space-y-4">
                       {selectedItems.map(code => {
@@ -1787,7 +1792,7 @@ export function Loans() {
                       )}
                     </div>
                   </div>
-                  <div className="p-8 bg-slate-900 text-white">
+                  <div className="p-4 md:p-8 bg-slate-900 text-white">
                     <button 
                       onClick={handleConfirmSchedule}
                       disabled={!selectedBeneficiaryId || selectedItems.length === 0}

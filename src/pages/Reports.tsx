@@ -13,7 +13,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Product, Loan, StockMovement } from '../types';
-import { formatDate, cn } from '../lib/utils';
+import { cn, formatDate, formatTime } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 
 export function Reports() {
@@ -325,7 +325,7 @@ export function Reports() {
                   <td className="px-8 py-5">
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-slate-600">{formatDate(loan.loanDate)}</span>
-                      <span className="text-[10px] font-bold text-slate-400">{new Date(loan.loanDate).toLocaleTimeString('pt-BR')}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{formatTime(loan.loanDate)}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5">
@@ -407,7 +407,7 @@ export function Reports() {
                   <td className="px-8 py-5">
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-slate-600">{formatDate(mov.date)}</span>
-                      <span className="text-[10px] font-bold text-slate-400">{new Date(mov.date).toLocaleTimeString('pt-BR')}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{formatTime(mov.date)}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5">

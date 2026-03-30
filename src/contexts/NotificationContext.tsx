@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Loan } from '../types';
+import { formatTime } from '../lib/utils';
 
 export interface Notification {
   id: string;
@@ -56,7 +57,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       id: Date.now().toString(),
       title,
       message,
-      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      time: formatTime(new Date()),
       type,
       read: false
     };
