@@ -431,158 +431,112 @@ export function Stock() {
         </div>
 
         {/* Mobile Cards (hidden on desktop) */}
-        <div className="lg:hidden divide-y divide-slate-100">
+        <div className="lg:hidden p-4 space-y-4 bg-slate-50/50">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product) => (
               <motion.div 
                 key={product.id}
                 layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="p-4 hover:bg-slate-50/50 transition-colors"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden"
               >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="size-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                      <Tag size={18} />
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="size-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-lg shadow-slate-900/10">
+                        <Tag size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-sm text-slate-900 leading-tight truncate uppercase tracking-tight">{product.name}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">REF: {product.code}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm text-slate-900 leading-tight truncate">{product.name}</p>
-                      <p className="text-xs text-slate-500">REF: {product.code}</p>
-                    </div>
-                  </div>
-                  <span className={cn(
-                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0",
-                    product.quantity <= product.minQuantity 
-                      ? "bg-red-50 text-red-600" 
-                      : "bg-emerald-50 text-emerald-600"
-                  )}>
-                    {product.quantity <= product.minQuantity ? 'Baixo' : 'Normal'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <div className="bg-slate-50 rounded-lg p-2 text-center">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">Categoria</p>
-                    <p className="text-xs font-bold text-slate-700 truncate">{product.category}</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-lg p-2 text-center">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">Qtd</p>
-                    <p className={cn(
-                      "text-sm font-black",
-                      product.quantity <= product.minQuantity ? "text-red-600" : "text-slate-900"
+                    <span className={cn(
+                      "inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shrink-0 border",
+                      product.quantity <= product.minQuantity 
+                        ? "bg-rose-50 text-rose-600 border-rose-100" 
+                        : "bg-emerald-50 text-emerald-600 border-emerald-100"
                     )}>
-                      {product.quantity} <span className="text-[9px] text-slate-400">{product.unit}</span>
-                    </p>
+                      {product.quantity <= product.minQuantity ? 'Baixo' : 'Normal'}
+                    </span>
                   </div>
-                  <div className="bg-slate-50 rounded-lg p-2 text-center">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">Mínima</p>
-                    <p className="text-sm font-bold text-slate-500">{product.minQuantity}</p>
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-end gap-1.5">
-                  <button 
-                    onClick={() => { 
-                      setEditingProduct(product);
-                      setMovementType('in');
-                      setIsMovementModalOpen(true); 
-                    }}
-                    className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
-                    title="Dar Entrada"
-                  >
-                    <Plus size={18} />
-                  </button>
-                  <button 
-                    onClick={() => { 
-                      setEditingProduct(product); 
-                      setMovementType('out');
-                      setIsMovementModalOpen(true); 
-                    }}
-                    className="p-2.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-all"
-                    title="Dar Saída"
-                  >
-                    <X size={18} />
-                  </button>
-                  {isAdmin && (
-                    <>
-                      <div className="w-px h-6 bg-slate-100 mx-0.5" />
-                      <button 
-                        onClick={() => {
-                          const printWindow = window.open('', '_blank');
-                          if (printWindow) {
-                            printWindow.document.write(`
-                              <html>
-                                <head><title>Etiqueta ${product.code}</title></head>
-                                <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
-                                  <div style="border:2px solid black;padding:20px;text-align:center;">
-                                    <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
-                                    <svg id="barcode"></svg>
-                                    <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${product.name}</p>
-                                  </div>
-                                  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-                                  <script>
-                                    JsBarcode("#barcode", "${product.code}", {
-                                      format: "CODE128",
-                                      displayValue: true,
-                                      width: 2,
-                                      height: 60,
-                                      margin: 10,
-                                      fontSize: 16
-                                    });
-                                    setTimeout(() => window.print(), 500);
-                                  </script>
-                                </body>
-                              </html>
-                            `);
-                            printWindow.document.close();
-                          }
+                  <div className="grid grid-cols-3 gap-3 mb-5">
+                    <div className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Categoria</p>
+                      <p className="text-[10px] font-black text-slate-700 truncate uppercase">{product.category}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Estoque</p>
+                      <p className={cn(
+                        "text-sm font-black",
+                        product.quantity <= product.minQuantity ? "text-rose-600" : "text-slate-900"
+                      )}>
+                        {product.quantity}<span className="text-[9px] text-slate-400 ml-0.5">{product.unit}</span>
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Mínimo</p>
+                      <p className="text-sm font-black text-slate-500">{product.minQuantity}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                    <div className="flex flex-1 gap-2">
+                       <button 
+                        onClick={() => { 
+                          setEditingProduct(product);
+                          setMovementType('in');
+                          setIsMovementModalOpen(true); 
                         }}
-                        className="p-2.5 text-slate-400 hover:text-sesi-yellow transition-colors"
-                        title="Imprimir Etiqueta"
+                        className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-100 transition-all"
                       >
-                        <FileUp size={18} />
+                        <Plus size={14} />
+                        Entrada
                       </button>
                       <button 
-                        onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
-                        className="p-2.5 text-slate-400 hover:text-sesi-blue transition-colors"
-                        title="Editar Produto"
+                        onClick={() => { 
+                          setEditingProduct(product); 
+                          setMovementType('out');
+                          setIsMovementModalOpen(true); 
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 py-3 bg-orange-50 text-orange-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-100 transition-all"
                       >
-                        <Edit2 size={18} />
+                        <X size={14} />
+                        Saída
                       </button>
-                      <button 
-                        onClick={async () => {
-                          if (confirm(`Deseja excluir o produto ${product.name}?`)) {
-                            try {
+                    </div>
+                    
+                    {isAdmin && (
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
+                          className="size-10 flex items-center justify-center bg-slate-50 text-slate-400 rounded-xl hover:bg-sesi-blue/10 hover:text-sesi-blue transition-all"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            if (confirm(`Excluir ${product.name}?`)) {
                               const { error } = await supabase.from('products').delete().eq('id', product.id);
-                              if (error) {
-                                if (error.code === '23503') {
-                                  alert('Não é possível excluir este produto pois existem movimentações vinculadas a ele.');
-                                } else {
-                                  alert('Erro ao excluir: ' + error.message);
-                                }
-                                return;
-                              }
-                              fetchProducts();
-                            } catch (err) {
-                              alert('Erro inesperado ao excluir.');
+                              if (!error) fetchProducts();
                             }
-                          }
-                        }}
-                        className="p-2.5 text-slate-400 hover:text-red-500 transition-colors"
-                        title="Excluir Produto"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </>
-                  )}
+                          }}
+                          className="size-10 flex items-center justify-center bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-all"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             ))}
           </AnimatePresence>
           {filteredProducts.length === 0 && (
-            <div className="px-6 py-12 text-center text-slate-400 text-sm italic">
+            <div className="py-20 text-center text-slate-300 font-bold italic">
               Nenhum produto encontrado.
             </div>
           )}

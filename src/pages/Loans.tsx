@@ -26,7 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Beneficiary, Notebook, Loan } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { cn, formatDate, formatTime, getTimezoneOffset } from '../lib/utils';
+import { cn, formatDate, formatTime, getTimezoneOffset, formatReturnDate } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 
 export function Loans() {
@@ -821,9 +821,9 @@ export function Loans() {
                               {formatDate(loan.loanDate)} {formatTime(loan.loanDate)}
                             </span>
                             {loan.returnDeadline && (
-                              <span className="text-[8px] md:text-[10px] font-black text-sesi-blue uppercase tracking-widest flex items-center gap-1 bg-sesi-blue/5 px-2 py-0.5 rounded w-fit">
+                              <span className="text-[8px] md:text-[10px] font-black text-sesi-blue uppercase tracking-widest flex items-center gap-1 bg-white border border-sesi-blue/20 px-3 py-1 rounded-full shadow-sm">
                                 <Clock size={10} />
-                                Até {loan.returnDeadline}
+                                Devolver {formatReturnDate(loan.returnDeadline)}
                               </span>
                             )}
                         </div>
@@ -866,6 +866,17 @@ export function Loans() {
                           </div>
                         );
                       })}
+                      <button
+                        onClick={() => {
+                          setSelectedBeneficiaryId(loan.beneficiaryId);
+                          setIsLoanModalOpen(true);
+                          setTimeout(() => inputRef.current?.focus(), 100);
+                        }}
+                        className="flex items-center justify-center size-8 md:size-10 bg-sesi-blue/10 border-2 border-dashed border-sesi-blue/30 text-sesi-blue rounded-lg md:rounded-[1.25rem] hover:bg-sesi-blue hover:text-white hover:border-sesi-blue transition-all"
+                        title="Adicionar mais itens"
+                      >
+                        <Plus size={20} />
+                      </button>
                     </div>
                   </div>
 

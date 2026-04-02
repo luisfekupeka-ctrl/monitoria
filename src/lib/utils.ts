@@ -43,3 +43,16 @@ export function getTimezoneOffset() {
   const sign = offsetMinutes >= 0 ? '+' : '-';
   return `${sign}${hoursOffset}:${minsOffset}`;
 }
+
+export function formatReturnDate(date: string | null | undefined) {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const day = d.toLocaleDateString('pt-BR');
+  const today = new Date().toLocaleDateString('pt-BR');
+  
+  if (day === today) return `Hoje às ${time}`;
+  return `${day} às ${time}`;
+}
