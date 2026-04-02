@@ -171,15 +171,76 @@ export function Reports() {
     }
   };
 
+  const [isBackupDone, setIsBackupDone] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
+
+  const handleFullBackup = async () => {
+    try {
+      // Trigger all existing exports as a "Full Backup"
+      exportStockReport();
+      exportLoanHistory();
+      setIsBackupDone(true);
+      alert('✅ Backups de Estoque e Empréstimos gerados com sucesso! Agora você pode realizar a limpeza com segurança.');
+    } catch (err) {
+      alert('Erro ao gerar backup.');
+    }
+  };
+
+  const handleClearOldData = async () => {
+    if (!isBackupDone) {
+      if (!confirm('⚠️ Você ainda não baixou o backup deste mês. Deseja realmente prosseguir com a exclusão PERMANENTE do histórico sem salvar uma cópia?')) {
+        return;
+      }
+    }
+
+    const confirmPurge = confirm('🚨 AVISO CRÍTICO: Esta ação irá apagar permanentemente todo o histórico de empréstimos DEVOLVIDOS e movimentações de estoque do MÊS ANTERIOR e mais antigos.\n\nISSO NÃO PODE SER DESFEITO.\n\nDeseja continuar?');
+    
+    if (!confirmPurge) return;
+
+    setIsPurging(true);
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(1);
+      cutoffDate.setHours(0, 0, 0, 0);
+      const isoCutoff = cutoffDate.toISOString();
+
+      // 1. Clear returned loans older than cutoff
+      const { error: loanError } = await supabase
+        .from('loans')
+        .delete()
+        .eq('status', 'returned')
+        .lt('loan_date', isoCutoff);
+
+      if (loanError) throw loanError;
+
+      // 2. Clear stock movements older than cutoff
+      const { error: movError } = await supabase
+        .from('stock_movements')
+        .delete()
+        .lt('date', isoCutoff);
+
+      if (movError) throw movError;
+
+      alert('✨ Sistema limpo com sucesso! O histórico do mês anterior foi removido.');
+      window.location.reload(); // Refresh to update counts
+    } catch (err: any) {
+      alert('Erro durante a limpeza: ' + err.message);
+    } finally {
+      setIsPurging(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="space-y-8"
     >
-      <div>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Relatórios e Indicadores</h2>
-        <p className="text-slate-500 mt-1">Gere documentos oficiais e analise o histórico de movimentações.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Relatórios e Indicadores</h2>
+          <p className="text-slate-500 mt-1">Gere documentos oficiais e analise o histórico de movimentações.</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -264,21 +325,38 @@ export function Reports() {
           </button>
         </motion.div>
 
-        {/* Custom Report Card */}
+        {/* System Maintenance Card */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.4 }}
-          className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all"
+          className="bg-rose-50 p-8 rounded-3xl border border-rose-100 shadow-sm transition-all"
         >
-          <div className="size-14 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center mb-6">
-            <Calendar size={28} />
+          <div className="size-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-6">
+            <TrendingUp size={28} className="rotate-180" />
           </div>
-          <h3 className="text-xl font-bold text-slate-900 mb-2">Relatório por Período</h3>
-          <p className="text-slate-500 text-sm mb-8">Selecione um intervalo de datas para gerar um relatório personalizado.</p>
-          <button className="w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-400 py-3 rounded-xl font-bold text-sm cursor-not-allowed">
-            Em breve
-          </button>
+          <h3 className="text-xl font-bold text-slate-900 mb-2">Manutenção do Sistema</h3>
+          <p className="text-slate-500 text-sm mb-8">Limpe o banco de dados removendo históricos antigos para manter o sistema rápido.</p>
+          <div className="flex gap-3">
+             <button 
+              onClick={handleFullBackup}
+              className="flex-1 flex items-center justify-center gap-2 bg-white text-slate-700 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all border border-slate-200"
+            >
+              {isBackupDone ? '✅ BACKUP OK' : '1. GERAR BACKUP'}
+            </button>
+            <button 
+              onClick={handleClearOldData}
+              disabled={isPurging}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all",
+                isBackupDone 
+                  ? "bg-rose-600 text-white hover:bg-rose-700 shadow-lg shadow-rose-200" 
+                  : "bg-rose-200 text-rose-400 cursor-not-allowed"
+              )}
+            >
+              {isPurging ? 'LIMPANDO...' : '2. LIMPAR MÊS ANTERIOR'}
+            </button>
+          </div>
         </motion.div>
       </div>
 

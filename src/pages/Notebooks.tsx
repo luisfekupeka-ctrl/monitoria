@@ -42,6 +42,27 @@ export function Notebooks() {
     fetchNotebooks();
   }, []);
 
+  const handleToggleMaintenance = async (notebook: Notebook) => {
+    const newStatus = notebook.status === 'maintenance' ? 'available' : 'maintenance';
+    
+    if (notebook.status === 'loaned') {
+      alert('Não é possível colocar em manutenção um equipamento que está em uso.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('notebooks')
+        .update({ status: newStatus })
+        .eq('id', notebook.id);
+      
+      if (error) throw error;
+      fetchNotebooks();
+    } catch (err: any) {
+      alert('Erro ao alterar status: ' + err.message);
+    }
+  };
+
   const fetchNotebooks = async () => {
     const { data } = await supabase.from('notebooks').select('*');
     if (data) {
@@ -94,10 +115,8 @@ export function Notebooks() {
           return;
         }
 
-        // Flexible column mapping: accept PT or EN headers
         const mappedData = data.map((row: any) => {
           const code = row['Código'] || row['codigo'] || row['code'] || row['Code'] || row['CODIGO'] || row['CÓDIGO'] || '';
-          // Smart type detection from code prefix
           let mappedType = row['Tipo'] || row['tipo'] || row['type'] || row['Type'] || row['TIPO'] || '';
           mappedType = mappedType.toString().toLowerCase().trim();
           
@@ -106,7 +125,7 @@ export function Notebooks() {
           else if (mappedType.includes('mouse') || mappedType.includes('mou') || codeStr.startsWith('M')) mappedType = 'mouse';
           else if (mappedType.includes('carr') || mappedType.includes('charger') || mappedType.includes('fonte') || codeStr.startsWith('C')) mappedType = 'charger';
           else if (mappedType.includes('fone') || mappedType.includes('head') || mappedType.includes('headphone') || codeStr.startsWith('F')) mappedType = 'headphones';
-          else mappedType = 'notebook'; // default
+          else mappedType = 'notebook';
 
           const lab = row['Laboratório'] || row['laboratorio'] || row['lab'] || row['Lab'] || row['LABORATÓRIO'] || '';
 
@@ -117,24 +136,22 @@ export function Notebooks() {
             status: 'available',
             laboratory: lab.toString().trim() || null
           };
-        }).filter(n => n.code !== ''); // remove rows without code
+        }).filter(n => n.code !== '');
 
         if (mappedData.length === 0) {
-          alert('Nenhum código encontrado na planilha.\n\nSua planilha precisa ter uma coluna chamada "Código" (ou "code").\nOpcionalmente pode ter uma coluna "Tipo" (notebook, mouse, charger, headphones).');
+          alert('Nenhum código encontrado na planilha.');
           return;
         }
 
-        // Filter out duplicates that already exist in the database
         const existingCodes = notebooks.map(n => n.code);
         const newItems = mappedData.filter(n => !existingCodes.includes(n.code));
         const skipped = mappedData.length - newItems.length;
 
         if (newItems.length === 0) {
-          alert(`Todos os ${mappedData.length} equipamentos da planilha já estão cadastrados no sistema.`);
+          alert(`Todos os ${mappedData.length} equipamentos da planilha já estão cadastrados.`);
           return;
         }
 
-        // Insert in batches of 50 to avoid timeout
         let inserted = 0;
         for (let i = 0; i < newItems.length; i += 50) {
           const batch = newItems.slice(i, i + 50);
@@ -149,14 +166,13 @@ export function Notebooks() {
         fetchNotebooks();
         
         let msg = `✅ Importação concluída!\n\n📥 ${inserted} equipamentos importados com sucesso.`;
-        if (skipped > 0) msg += `\n⏭️ ${skipped} duplicados ignorados (já existiam).`;
+        if (skipped > 0) msg += `\n⏭️ ${skipped} duplicados ignorados.`;
         alert(msg);
       } catch (err: any) {
         alert('Erro ao ler planilha: ' + err.message);
       }
     };
     reader.readAsBinaryString(file);
-    // Reset input so same file can be re-selected
     e.target.value = '';
   };
 
@@ -176,8 +192,6 @@ export function Notebooks() {
     }
 
     const type = formData.get('type') as any;
-
-    // Detect padding from the start input (e.g., if user types "01", padding is 2)
     const padding = startRaw.length > startNum.toString().length ? startRaw.length : 0;
 
     const itemsToInsert = [];
@@ -187,7 +201,6 @@ export function Notebooks() {
         const numStr = padding > 0 ? i.toString().padStart(padding, '0') : i.toString();
         const code = `${prefix}${numStr}`.toUpperCase().trim();
         
-        // Only add if it doesn't already exist to avoid "messing up" the list
         if (!existingCodes.includes(code)) {
             let inferredType = type;
             const prefixUpper = prefix.toUpperCase();
@@ -248,9 +261,9 @@ export function Notebooks() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'available': return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600"><CheckCircle2 size={12} /> Disponível</span>;
-      case 'loaned': return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600"><Handshake size={12} /> Em uso</span>;
-      case 'maintenance': return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-600"><Wrench size={12} /> Manutenção</span>;
+      case 'available': return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-200">Disponível</span>;
+      case 'loaned': return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-50 text-amber-600 border border-amber-200">Em uso</span>;
+      case 'maintenance': return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-rose-50 text-rose-600 border border-rose-200">Manutenção</span>;
       default: return null;
     }
   };
@@ -263,8 +276,8 @@ export function Notebooks() {
     >
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Gestão de Equipamentos <span className="text-xs font-normal text-slate-400 font-mono">[v2.3]</span></h2>
-          <p className="text-slate-500 mt-1">Controle individual de notebooks, mouses, carregadores e fones.</p>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Gestão de Equipamentos</h2>
+          <p className="text-slate-500 mt-1">Controle individual de notebooks e periféricos em tempo real.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           {isAdmin && (
@@ -281,7 +294,7 @@ export function Notebooks() {
                 className="flex items-center gap-2 bg-sesi-blue/10 text-sesi-blue px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-sesi-blue/20 transition-all"
               >
                 <Hash size={18} />
-                Cadastrar Intervalo
+                Gerar Vários
               </button>
             </>
           )}
@@ -290,12 +303,12 @@ export function Notebooks() {
             className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
           >
             <FileDown size={18} />
-            Exportar Excel
+            Exportar
           </button>
           {isAdmin && (
             <label className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all cursor-pointer">
               <FileUp size={18} />
-              Importar Excel
+              Importar
               <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
             </label>
           )}
@@ -324,7 +337,7 @@ export function Notebooks() {
             <h4 className="text-sm font-bold text-slate-500">Tudo</h4>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-black text-slate-900">{notebooks.length}</span>
-              <span className="text-xs font-bold text-slate-400">Total</span>
+              <span className="text-xs font-bold text-slate-400">ítens</span>
             </div>
           </div>
         </motion.div>
@@ -332,7 +345,7 @@ export function Notebooks() {
         {[
           { id: 'notebook', label: 'Notebooks', icon: Laptop, color: 'bg-blue-500' },
           { id: 'mouse', label: 'Mouses', icon: Mouse, color: 'bg-purple-500' },
-          { id: 'charger', label: 'Carregadores', icon: Zap, color: 'bg-amber-500' },
+          { id: 'charger', label: 'Fontes', icon: Zap, color: 'bg-amber-500' },
           { id: 'headphones', label: 'Fones', icon: Headphones, color: 'bg-rose-500' },
         ].map((item, index) => {
           const count = notebooks.filter(n => n.type === item.id).length;
@@ -356,7 +369,7 @@ export function Notebooks() {
                 <div className={cn("p-2 rounded-xl text-white", item.color)}>
                   <item.icon size={20} />
                 </div>
-                <span className="text-xs font-bold text-slate-400 group-hover:text-sesi-blue transition-colors">Ver todos</span>
+                <span className="text-xs font-bold text-slate-400 group-hover:text-sesi-blue transition-colors">Ver</span>
               </div>
               <div className="space-y-1">
                 <h4 className="text-sm font-bold text-slate-500">{item.label}</h4>
@@ -380,20 +393,19 @@ export function Notebooks() {
               : "text-slate-500 hover:text-slate-700"
           )}
         >
-          <div className="size-4 rounded-full bg-slate-900" />
           Todos
         </button>
         {[
           { id: 'notebook', label: 'Notebooks', icon: Laptop },
           { id: 'mouse', label: 'Mouses', icon: Mouse },
-          { id: 'charger', label: 'Carregadores', icon: Zap },
+          { id: 'charger', label: 'Fontes', icon: Zap },
           { id: 'headphones', label: 'Fones', icon: Headphones },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+              "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
               activeTab === tab.id 
                 ? "bg-white text-sesi-blue shadow-sm"
                 : "text-slate-500 hover:text-slate-700"
@@ -405,25 +417,14 @@ export function Notebooks() {
         ))}
       </div>
 
-      {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="md:col-span-2 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder="Buscar por código (ex: NB01)..."
+            placeholder="Buscar por código..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && searchTerm) {
-                // For notebooks, we just filter, but BIP can confirm visibility
-                const match = notebooks.find(n => n.code.toLowerCase() === searchTerm.toLowerCase());
-                if (match) {
-                  setActiveTab(match.type);
-                  setSearchTerm(match.code);
-                }
-              }
-            }}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-sesi-blue/20 text-sm"
           />
         </div>
@@ -439,129 +440,159 @@ export function Notebooks() {
         </select>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-100">
-               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Código</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Laboratório</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registrado por</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            <AnimatePresence mode="popLayout">
-              {filteredNotebooks.map((notebook) => (
-                <motion.tr 
-                  key={notebook.id}
-                  layout
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="hover:bg-slate-50/50 transition-colors"
-                >
-                 <td className="px-6 py-4">
-                  <span className="font-mono font-bold text-sm text-slate-900">{notebook.code}</span>
-                </td>
-                <td className="px-6 py-4 text-sm text-slate-600 capitalize">{notebook.type}</td>
-                <td className="px-6 py-4 text-sm text-slate-600">{notebook.laboratory || '-'}</td>
-                <td className="px-6 py-4">
-                  {getStatusBadge(notebook.status)}
-                </td>
-                <td className="px-6 py-4 text-xs text-slate-500 italic">
-                  {notebook.createdBy || 'Sistema'}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end gap-2">
+      <div className="space-y-6">
+        <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Código</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Laboratório</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              <AnimatePresence mode="popLayout" initial={false}>
+                {filteredNotebooks.map((notebook) => (
+                  <motion.tr 
+                    key={notebook.id}
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="hover:bg-slate-50/50 transition-colors"
+                  >
+                  <td className="px-6 py-4">
+                    <span className="font-mono font-bold text-sm text-slate-900">{notebook.code}</span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600 capitalize">{notebook.type}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500 text-center">{notebook.laboratory || '-'}</td>
+                  <td className="px-6 py-4 text-center">
+                    {getStatusBadge(notebook.status)}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                       {isAdmin && (
+                        <>
+                          <button 
+                            onClick={() => handleToggleMaintenance(notebook)}
+                            className={cn(
+                              "p-2 rounded-lg transition-all",
+                              notebook.status === 'maintenance' ? "text-rose-500 bg-rose-50" : "text-slate-400 hover:text-rose-500 hover:bg-rose-50"
+                            )}
+                            title="Tocar Manutenção"
+                          >
+                            <Wrench size={16} />
+                          </button>
+                          <button 
+                            onClick={() => { setEditingNotebook(notebook); setIsModalOpen(true); }}
+                            className="p-2 text-slate-400 hover:text-sesi-blue hover:bg-slate-50 rounded-lg transition-all"
+                            title="Editar"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={async () => {
+                              if (confirm(`Excluir ${notebook.code}?`)) {
+                                const { error } = await supabase.from('notebooks').delete().eq('id', notebook.id);
+                                if (!error) fetchNotebooks();
+                              }
+                            }}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-rose-50 rounded-lg transition-all"
+                            title="Excluir"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                  </motion.tr>
+                ))}
+              </AnimatePresence>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="lg:hidden space-y-4 pb-32">
+          <AnimatePresence mode="popLayout" initial={false}>
+            {filteredNotebooks.map((notebook) => (
+              <motion.div 
+                key={notebook.id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden relative"
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="size-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-lg shadow-slate-900/10">
+                        {notebook.type === 'notebook' && <Laptop size={20} />}
+                        {notebook.type === 'mouse' && <Mouse size={20} />}
+                        {notebook.type === 'charger' && <Zap size={20} />}
+                        {notebook.type === 'headphones' && <Headphones size={20} />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-sm text-slate-900 leading-tight truncate uppercase tracking-tight">{notebook.code}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{notebook.laboratory || 'LAB N/A'}</p>
+                      </div>
+                    </div>
+                    {getStatusBadge(notebook.status)}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-5">
+                    <div className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Tipo</p>
+                      <p className="text-[10px] font-black text-slate-700 truncate uppercase">{notebook.type}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Responsável</p>
+                      <p className="text-[10px] font-black text-slate-700 truncate uppercase">{notebook.createdBy || 'Sistema'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
                     {isAdmin && (
-                      <>
+                      <div className="grid grid-cols-3 gap-2 w-full">
                         <button 
-                          onClick={() => {
-                            const printWindow = window.open('', '_blank');
-                            if (printWindow) {
-                              printWindow.document.write(`
-                                <html>
-                                  <head><title>Etiqueta ${notebook.code}</title></head>
-                                  <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
-                                    <div style="border:2px solid black;padding:20px;text-align:center;">
-                                      <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
-                                      <svg id="barcode"></svg>
-                                      <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${notebook.type.toUpperCase()}</p>
-                                    </div>
-                                    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-                                    <script>
-                                      JsBarcode("#barcode", "${notebook.code}", {
-                                        format: "CODE128",
-                                        displayValue: true,
-                                        width: 2,
-                                        height: 60,
-                                        margin: 10,
-                                        fontSize: 16
-                                      });
-                                      setTimeout(() => window.print(), 500);
-                                    </script>
-                                  </body>
-                                </html>
-                              `);
-                              printWindow.document.close();
-                            }
-                          }}
-                          className="p-2 text-slate-400 hover:text-sesi-yellow transition-colors"
-                          title="Imprimir Etiqueta"
+                          onClick={() => handleToggleMaintenance(notebook)}
+                          className={cn(
+                            "flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-sm",
+                            notebook.status === 'maintenance' ? "bg-rose-600 text-white" : "bg-slate-50 text-slate-400"
+                          )}
                         >
-                          <FileUp size={16} />
+                          <Wrench size={16} />
                         </button>
                         <button 
                           onClick={() => { setEditingNotebook(notebook); setIsModalOpen(true); }}
-                          className="p-2 text-slate-400 hover:text-sesi-blue transition-colors"
+                          className="flex items-center justify-center gap-2 py-4 bg-slate-50 text-slate-900 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-sm"
                         >
                           <Edit2 size={16} />
                         </button>
                         <button 
                           onClick={async () => {
-                            if (confirm(`Deseja excluir o equipamento ${notebook.code}?`)) {
-                              try {
-                                const { error } = await supabase.from('notebooks').delete().eq('id', notebook.id);
-                                if (error) {
-                                  if (error.code === '23503') {
-                                    alert('Não é possível excluir este equipamento pois ele está vinculado a um histórico de empréstimo.');
-                                  } else {
-                                    alert('Erro ao excluir: ' + error.message);
-                                  }
-                                  return;
-                                }
-                                fetchNotebooks();
-                              } catch (err) {
-                                alert('Erro inesperado ao excluir.');
-                              }
+                            if (confirm(`Excluir ${notebook.code}?`)) {
+                              const { error } = await supabase.from('notebooks').delete().eq('id', notebook.id);
+                              if (!error) fetchNotebooks();
                             }
                           }}
-                          className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                          className="flex items-center justify-center gap-2 py-4 bg-rose-50 text-rose-600 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-sm"
                         >
                           <Trash2 size={16} />
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
-                </td>
-                </motion.tr>
-              ))}
-            </AnimatePresence>
-            {filteredNotebooks.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-slate-400 text-sm italic">
-                  Nenhum equipamento encontrado.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
       </div>
 
-      {/* Modal for Single Add */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
