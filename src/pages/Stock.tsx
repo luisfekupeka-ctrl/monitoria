@@ -221,7 +221,6 @@ export function Stock() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="md:col-span-2 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -232,7 +231,6 @@ export function Stock() {
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && searchTerm) {
-                // If BIP scans a code, we can auto-select if unique
                 const match = products.find(p => p.code === searchTerm);
                 if (match) {
                   setEditingProduct(match);
@@ -265,9 +263,9 @@ export function Stock() {
       </div>
 
       {/* Products - Cards on mobile, Table on desktop */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="space-y-6">
         {/* Desktop Table (hidden on mobile) */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
@@ -280,7 +278,7 @@ export function Stock() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              <AnimatePresence mode="popLayout">
+              <AnimatePresence mode="popLayout" initial={false}>
                 {filteredProducts.map((product) => (
                   <motion.tr 
                     key={product.id}
@@ -304,7 +302,7 @@ export function Stock() {
                   <td className="px-6 py-4 text-sm text-slate-600">{product.category}</td>
                   <td className={cn(
                     "px-6 py-4 text-sm font-bold text-center",
-                    product.quantity <= product.minQuantity ? "text-red-600" : "text-slate-900"
+                    product.quantity <= (product.minQuantity ?? 0) ? "text-red-600" : "text-slate-900"
                   )}>
                     {product.quantity} {product.unit}
                   </td>
@@ -312,15 +310,51 @@ export function Stock() {
                   <td className="px-6 py-4">
                     <span className={cn(
                       "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold",
-                      product.quantity <= product.minQuantity 
+                      product.quantity <= (product.minQuantity ?? 0) 
                         ? "bg-red-50 text-red-600" 
                         : "bg-emerald-50 text-emerald-600"
                     )}>
-                      {product.quantity <= product.minQuantity ? 'Baixo' : 'Normal'}
+                      {product.quantity <= (product.minQuantity ?? 0) ? 'Baixo' : 'Normal'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
+                       {isAdmin && (
+                        <button 
+                          onClick={() => {
+                            const printWindow = window.open('', '_blank');
+                            if (printWindow) {
+                              printWindow.document.write(`
+                                <html>
+                                  <head><title>Etiqueta ${product.code}</title></head>
+                                  <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
+                                    <div style="border:2px solid black;padding:20px;text-align:center;">
+                                      <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
+                                      <div id="qrcode" style="margin: 10px auto;"></div>
+                                      <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${product.name}</p>
+                                      <p style="margin:5px 0 0 0;font-family:monospace;font-size:14px;">${product.code}</p>
+                                    </div>
+                                    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+                                    <script>
+                                      new QRCode(document.getElementById("qrcode"), {
+                                        text: "${product.code}",
+                                        width: 128,
+                                        height: 128
+                                      });
+                                      setTimeout(() => window.print(), 500);
+                                    </script>
+                                  </body>
+                                </html>
+                              `);
+                              printWindow.document.close();
+                            }
+                          }}
+                          className="p-2 text-slate-400 hover:text-sesi-yellow transition-colors"
+                          title="Imprimir Etiqueta"
+                        >
+                          <FileUp size={16} />
+                        </button>
+                      )}
                       <button 
                         onClick={() => { 
                           setEditingProduct(product);
@@ -346,42 +380,6 @@ export function Stock() {
                       {isAdmin && (
                         <div className="flex gap-1 border-l border-slate-100 pl-2 ml-1">
                           <button 
-                            onClick={() => {
-                              const printWindow = window.open('', '_blank');
-                              if (printWindow) {
-                                printWindow.document.write(`
-                                  <html>
-                                    <head><title>Etiqueta ${product.code}</title></head>
-                                    <body style="display:flex;flex-direction:column;align-items:center;justify-center;font-family:sans-serif;padding:20px;">
-                                      <div style="border:2px solid black;padding:20px;text-align:center;">
-                                        <h2 style="margin:0 0 10px 0;font-size:24px;">SESI MONITORIA</h2>
-                                        <svg id="barcode"></svg>
-                                        <p style="font-weight:bold;margin:10px 0 0 0;font-size:18px;">${product.name}</p>
-                                      </div>
-                                      <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-                                      <script>
-                                        JsBarcode("#barcode", "${product.code}", {
-                                          format: "CODE128",
-                                          displayValue: true,
-                                          width: 2,
-                                          height: 60,
-                                          margin: 10,
-                                          fontSize: 16
-                                        });
-                                        setTimeout(() => window.print(), 500);
-                                      </script>
-                                    </body>
-                                  </html>
-                                `);
-                                printWindow.document.close();
-                              }
-                            }}
-                            className="p-2 text-slate-400 hover:text-sesi-yellow transition-colors"
-                            title="Imprimir Etiqueta"
-                          >
-                            <FileUp size={16} />
-                          </button>
-                          <button 
                             onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
                             className="p-2 text-slate-400 hover:text-sesi-blue transition-colors"
                             title="Editar Produto"
@@ -391,20 +389,8 @@ export function Stock() {
                           <button 
                             onClick={async () => {
                               if (confirm(`Deseja excluir o produto ${product.name}?`)) {
-                                try {
-                                  const { error } = await supabase.from('products').delete().eq('id', product.id);
-                                  if (error) {
-                                    if (error.code === '23503') {
-                                      alert('Não é possível excluir este produto pois existem movimentações vinculadas a ele.');
-                                    } else {
-                                      alert('Erro ao excluir: ' + error.message);
-                                    }
-                                    return;
-                                  }
-                                  fetchProducts();
-                                } catch (err) {
-                                  alert('Erro inesperado ao excluir.');
-                                }
+                                const { error } = await supabase.from('products').delete().eq('id', product.id);
+                                if (!error) fetchProducts();
                               }
                             }}
                             className="p-2 text-slate-400 hover:text-red-500 transition-colors"
@@ -419,20 +405,16 @@ export function Stock() {
                   </motion.tr>
                 ))}
               </AnimatePresence>
-              {filteredProducts.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm italic">
-                    Nenhum produto encontrado.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+            <p className="text-xs text-slate-500">Exibindo {filteredProducts.length} produtos</p>
+          </div>
         </div>
 
         {/* Mobile Cards (hidden on desktop) */}
-        <div className="lg:hidden p-4 space-y-4 bg-slate-50/50">
-          <AnimatePresence mode="popLayout">
+        <div className="lg:hidden space-y-4 pb-32">
+          <AnimatePresence mode="popLayout" initial={false}>
             {filteredProducts.map((product) => (
               <motion.div 
                 key={product.id}
@@ -440,7 +422,7 @@ export function Stock() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden"
+                className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 relative overflow-visible"
               >
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-4 mb-4">
@@ -455,11 +437,11 @@ export function Stock() {
                     </div>
                     <span className={cn(
                       "inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shrink-0 border",
-                      product.quantity <= product.minQuantity 
+                      product.quantity <= (product.minQuantity ?? 0) 
                         ? "bg-rose-50 text-rose-600 border-rose-100" 
                         : "bg-emerald-50 text-emerald-600 border-emerald-100"
                     )}>
-                      {product.quantity <= product.minQuantity ? 'Baixo' : 'Normal'}
+                      {product.quantity <= (product.minQuantity ?? 0) ? 'Baixo' : 'Normal'}
                     </span>
                   </div>
 
@@ -468,11 +450,11 @@ export function Stock() {
                       <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Categoria</p>
                       <p className="text-[10px] font-black text-slate-700 truncate uppercase">{product.category}</p>
                     </div>
-                    <div className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100">
+                    <div className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100 hover:bg-slate-100 transition-colors">
                       <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Estoque</p>
                       <p className={cn(
                         "text-sm font-black",
-                        product.quantity <= product.minQuantity ? "text-rose-600" : "text-slate-900"
+                        product.quantity <= (product.minQuantity ?? 0) ? "text-rose-600" : "text-slate-900"
                       )}>
                         {product.quantity}<span className="text-[9px] text-slate-400 ml-0.5">{product.unit}</span>
                       </p>
@@ -491,9 +473,9 @@ export function Stock() {
                           setMovementType('in');
                           setIsMovementModalOpen(true); 
                         }}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-100 transition-all"
+                        className="flex-1 flex items-center justify-center gap-2 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-sm"
                       >
-                        <Plus size={14} />
+                        <Plus size={16} />
                         Entrada
                       </button>
                       <button 
@@ -502,9 +484,9 @@ export function Stock() {
                           setMovementType('out');
                           setIsMovementModalOpen(true); 
                         }}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 bg-orange-50 text-orange-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-100 transition-all"
+                        className="flex-1 flex items-center justify-center gap-2 py-4 bg-orange-50 text-orange-600 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-sm"
                       >
-                        <X size={14} />
+                        <X size={16} />
                         Saída
                       </button>
                     </div>
@@ -513,9 +495,9 @@ export function Stock() {
                       <div className="flex gap-2">
                         <button 
                           onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}
-                          className="size-10 flex items-center justify-center bg-slate-50 text-slate-400 rounded-xl hover:bg-sesi-blue/10 hover:text-sesi-blue transition-all"
+                          className="size-12 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl active:scale-95 transition-all"
                         >
-                          <Edit2 size={16} />
+                          <Edit2 size={18} />
                         </button>
                         <button 
                           onClick={async () => {
@@ -524,9 +506,9 @@ export function Stock() {
                               if (!error) fetchProducts();
                             }
                           }}
-                          className="size-10 flex items-center justify-center bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-all"
+                          className="size-12 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl active:scale-95 transition-all"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={18} />
                         </button>
                       </div>
                     )}
@@ -541,13 +523,8 @@ export function Stock() {
             </div>
           )}
         </div>
-
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-xs text-slate-500">Exibindo {filteredProducts.length} produtos</p>
-        </div>
       </div>
 
-      {/* Modal for Stock Movement */}
       {isMovementModalOpen && editingProduct && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
@@ -594,7 +571,6 @@ export function Stock() {
                 return;
               }
 
-              // Log movement
               const { error: logError } = await supabase.from('stock_movements').insert({
                 id: Date.now().toString(),
                 product_id: editingProduct.id,
@@ -667,7 +643,6 @@ export function Stock() {
         </div>
       )}
 
-      {/* Modal for Add/Edit */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-0 md:p-4">
           <div className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden max-h-[90dvh] md:max-h-none overflow-y-auto">
