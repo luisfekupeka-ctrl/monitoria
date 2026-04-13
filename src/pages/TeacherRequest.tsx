@@ -25,7 +25,8 @@ import {
   Trash2,
   ChevronLeft,
   Search,
-  Filter
+  Filter,
+  Tablet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -39,6 +40,7 @@ interface EquipmentItem {
 
 const EQUIPMENT_TYPES: EquipmentItem[] = [
   { id: 'notebook', label: 'Notebooks', icon: Laptop, color: 'bg-blue-500' },
+  { id: 'mesa', label: 'Mesas Digitais', icon: Tablet, color: 'bg-rose-500' },
   { id: 'mouse', label: 'Mouses', icon: Mouse, color: 'bg-amber-500' },
   { id: 'charger', label: 'Carregadores', icon: Zap, color: 'bg-emerald-500' },
   { id: 'headphones', label: 'Fones', icon: Headphones, color: 'bg-purple-500' },
@@ -145,6 +147,7 @@ export default function TeacherRequest() {
   // Form states
   const [requestedItems, setRequestedItems] = useState<Record<string, number>>({
     notebook: 0,
+    mesa: 0,
     mouse: 0,
     charger: 0,
     headphones: 0,
@@ -198,7 +201,7 @@ export default function TeacherRequest() {
     if (notebooksData) {
       const totals: Record<string, number> = {};
       const availables: Record<string, number> = {};
-      const types = ['notebook', 'mouse', 'charger', 'headphones'];
+      const types = ['notebook', 'mouse', 'charger', 'headphones', 'mesa'];
       types.forEach(type => {
         const allOfType = notebooksData.filter((n: any) => n.type === type);
         totals[type] = allOfType.length;
@@ -249,7 +252,7 @@ export default function TeacherRequest() {
 
   // Compute availability per shift considering reservations for the chosen date
   const shiftAvailability = useMemo(() => {
-    const types = ['notebook', 'mouse', 'charger', 'headphones', 'kit'];
+    const types = ['notebook', 'mesa', 'mouse', 'charger', 'headphones', 'kit'];
     const result: Record<string, { morning: number; afternoon: number; total: number; currentAvailable: number }> = {};
     types.forEach(type => {
       if (type === 'kit') return;
@@ -271,7 +274,7 @@ export default function TeacherRequest() {
         currentAvailable
       };
     });
-    const kitTypes = ['notebook', 'mouse', 'charger', 'headphones'];
+    const kitTypes = ['notebook', 'mouse', 'charger', 'headphones', 'mesa'];
     result['kit'] = {
       morning: Math.min(...kitTypes.map(t => result[t]?.morning || 0)),
       afternoon: Math.min(...kitTypes.map(t => result[t]?.afternoon || 0)),

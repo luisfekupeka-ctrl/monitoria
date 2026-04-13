@@ -20,7 +20,8 @@ import {
   Calendar,
   Clock,
   Clock9,
-  Bell
+  Bell,
+  Tablet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Beneficiary, Notebook, Loan } from '../types';
@@ -1189,6 +1190,7 @@ export function Loans() {
                   <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl">
                     {[
                       { id: 'notebook', label: 'Notebooks', icon: Laptop },
+                      { id: 'mesa', label: 'Mesas', icon: Tablet },
                       { id: 'charger', label: 'Carregadores', icon: Zap },
                       { id: 'headphones', label: 'Fones', icon: Headphones },
                       { id: 'mouse', label: 'Mouses', icon: Mouse },
@@ -1214,10 +1216,11 @@ export function Loans() {
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                         {activeType === 'notebook' && <Laptop size={14} className="text-sesi-yellow" />}
+                        {activeType === 'mesa' && <Tablet size={14} className="text-sesi-yellow" />}
                         {activeType === 'charger' && <Zap size={14} className="text-sesi-yellow" />}
                         {activeType === 'headphones' && <Headphones size={14} className="text-sesi-yellow" />}
                         {activeType === 'mouse' && <Mouse size={14} className="text-sesi-yellow" />}
-                        Grade de {activeType === 'notebook' ? 'Notebooks' : activeType === 'charger' ? 'Carregadores' : activeType === 'headphones' ? 'Fones' : 'Mouses'} Disponíveis
+                        Grade de {activeType === 'notebook' ? 'Notebooks' : activeType === 'mesa' ? 'Mesas Digitais' : activeType === 'charger' ? 'Carregadores' : activeType === 'headphones' ? 'Fones' : 'Mouses'} Disponíveis
                       </h3>
                       <div className="flex items-center gap-4">
                         {activeType === 'notebook' && (
@@ -1370,6 +1373,7 @@ export function Loans() {
                           <div key={code} className="group relative bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:border-sesi-blue/30 transition-all">
                             <div className="flex flex-col items-center gap-1">
                               {item?.type === 'notebook' && <Laptop size={16} className="text-slate-300 group-hover:text-sesi-blue transition-colors" />}
+                              {item?.type === 'mesa' && <Tablet size={16} className="text-slate-300 group-hover:text-sesi-blue transition-colors" />}
                               {item?.type === 'charger' && <Zap size={16} className="text-slate-300 group-hover:text-sesi-blue transition-colors" />}
                               {item?.type === 'headphones' && <Headphones size={16} className="text-slate-300 group-hover:text-sesi-blue transition-colors" />}
                               {item?.type === 'mouse' && <Mouse size={16} className="text-slate-300 group-hover:text-sesi-blue transition-colors" />}
@@ -1574,6 +1578,7 @@ export function Loans() {
                           preparationItems.includes(item.code) ? "bg-white/20" : "bg-slate-50 group-hover:bg-sesi-blue/10"
                         )}>
                           {item.type === 'notebook' && <Laptop size={14} />}
+                          {item.type === 'mesa' && <Tablet size={14} />}
                           {item.type === 'mouse' && <Mouse size={14} />}
                           {item.type === 'charger' && <Zap size={14} />}
                           {item.type === 'headphones' && <Headphones size={14} />}

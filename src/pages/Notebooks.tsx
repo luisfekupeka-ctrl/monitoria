@@ -15,7 +15,8 @@ import {
   Handshake,
   Mouse,
   Zap,
-  Headphones
+  Headphones,
+  Tablet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -34,7 +35,7 @@ export function Notebooks() {
   const [isRangeModalOpen, setIsRangeModalOpen] = useState(false);
   const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'all' | 'notebook' | 'mouse' | 'charger' | 'headphones'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'notebook' | 'mouse' | 'charger' | 'headphones' | 'mesa'>('all');
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
@@ -125,6 +126,7 @@ export function Notebooks() {
           else if (mappedType.includes('mouse') || mappedType.includes('mou') || codeStr.startsWith('M')) mappedType = 'mouse';
           else if (mappedType.includes('carr') || mappedType.includes('charger') || mappedType.includes('fonte') || codeStr.startsWith('C')) mappedType = 'charger';
           else if (mappedType.includes('fone') || mappedType.includes('head') || mappedType.includes('headphone') || codeStr.startsWith('F')) mappedType = 'headphones';
+          else if (mappedType.includes('mesa') || mappedType.includes('tablet') || codeStr.startsWith('MD') || codeStr.startsWith('MESA')) mappedType = 'mesa';
           else mappedType = 'notebook';
 
           const lab = row['Laboratório'] || row['laboratorio'] || row['lab'] || row['Lab'] || row['LABORATÓRIO'] || '';
@@ -208,6 +210,7 @@ export function Notebooks() {
             else if (prefixUpper === 'M') inferredType = 'mouse';
             else if (prefixUpper === 'C') inferredType = 'charger';
             else if (prefixUpper === 'F') inferredType = 'headphones';
+            else if (prefixUpper === 'MD' || prefixUpper === 'MESA') inferredType = 'mesa';
 
             itemsToInsert.push({
                 id: Math.random().toString(36).substr(2, 9),
@@ -344,6 +347,7 @@ export function Notebooks() {
 
         {[
           { id: 'notebook', label: 'Notebooks', icon: Laptop, color: 'bg-blue-500' },
+          { id: 'mesa', label: 'Mesas', icon: Tablet, color: 'bg-rose-500' },
           { id: 'mouse', label: 'Mouses', icon: Mouse, color: 'bg-purple-500' },
           { id: 'charger', label: 'Fontes', icon: Zap, color: 'bg-amber-500' },
           { id: 'headphones', label: 'Fones', icon: Headphones, color: 'bg-rose-500' },
@@ -397,6 +401,7 @@ export function Notebooks() {
         </button>
         {[
           { id: 'notebook', label: 'Notebooks', icon: Laptop },
+          { id: 'mesa', label: 'Mesas', icon: Tablet },
           { id: 'mouse', label: 'Mouses', icon: Mouse },
           { id: 'charger', label: 'Fontes', icon: Zap },
           { id: 'headphones', label: 'Fones', icon: Headphones },
@@ -531,6 +536,7 @@ export function Notebooks() {
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="size-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-lg shadow-slate-900/10">
                         {notebook.type === 'notebook' && <Laptop size={20} />}
+                        {notebook.type === 'mesa' && <Tablet size={20} />}
                         {notebook.type === 'mouse' && <Mouse size={20} />}
                         {notebook.type === 'charger' && <Zap size={20} />}
                         {notebook.type === 'headphones' && <Headphones size={20} />}
@@ -654,6 +660,7 @@ export function Notebooks() {
                   className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none"
                 >
                   <option value="notebook">Notebook</option>
+                  <option value="mesa">Mesa Digital</option>
                   <option value="mouse">Mouse</option>
                   <option value="charger">Carregador</option>
                   <option value="headphones">Fone de Ouvido</option>
@@ -758,6 +765,7 @@ export function Notebooks() {
                 <label className="text-sm font-semibold text-slate-700">Tipo</label>
                 <select name="type" className="w-full px-4 py-2 bg-slate-50 border-slate-100 rounded-xl focus:ring-2 focus:ring-sesi-blue/20 outline-none">
                   <option value="notebook">Notebook</option>
+                  <option value="mesa">Mesa Digital</option>
                   <option value="mouse">Mouse</option>
                   <option value="charger">Carregador</option>
                   <option value="headphones">Fone de Ouvido</option>

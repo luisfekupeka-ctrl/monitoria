@@ -22,7 +22,7 @@ export interface Product {
 export interface Notebook {
   id: string;
   code: string;
-  type: 'notebook' | 'mouse' | 'charger' | 'headphones';
+  type: 'notebook' | 'mouse' | 'charger' | 'headphones' | 'mesa';
   status: 'available' | 'loaned' | 'maintenance';
   createdBy?: string;
   laboratory?: string;
