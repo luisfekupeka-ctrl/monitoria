@@ -180,8 +180,18 @@ export default function TeacherRequest() {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [token]);
+    
+    // Refresh availability and requests every 2 minutes (Cache Clear)
+    const interval = setInterval(() => {
+      fetchAvailability();
+      if (selectedProfessorId) fetchMyRequests();
+    }, 120000);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      clearInterval(interval);
+    };
+  }, [token, selectedProfessorId, scheduledDate]);
 
   // Refetch availability whenever date changes
   useEffect(() => {
@@ -302,7 +312,12 @@ export default function TeacherRequest() {
   };
 
   const fetchProfessors = async () => {
-    const { data } = await supabase.from('professors').select('id, name, type, phone, pin').in('type', ['professor', 'collaborator']).order('name');
+    // Include professors, collaborators, and users. Exclude rooms.
+    const { data } = await supabase
+      .from('professors')
+      .select('id, name, type, phone, pin')
+      .in('type', ['professor', 'collaborator', 'usuario', 'user'])
+      .order('name');
     if (data) setProfessors(data);
   };
 
@@ -360,25 +375,46 @@ export default function TeacherRequest() {
 
     setIsLoading(true);
     setError(null);
-    const payload = {
+    const payload: any = {
       professor_id: selectedProfessorId,
       requested_items: requestedItems,
       scheduled_date: scheduledDate,
       start_time: startTime,
       return_deadline: returnDeadline || null,
       destination: destination,
-      observations: observations || null,
-      status: editingRequestId ? undefined : 'pending'
+      observations: observations || null
     };
 
+    if (!editingRequestId) {
+      payload.status = 'pending';
+    }
+
     try {
-      const query = editingRequestId ? supabase.from('teacher_requests').update(payload).eq('id', editingRequestId) : supabase.from('teacher_requests').insert(payload);
+      const query = editingRequestId 
+        ? supabase.from('teacher_requests').update(payload).eq('id', editingRequestId) 
+        : supabase.from('teacher_requests').insert(payload);
+      
       const { error: dbError } = await query;
       if (dbError) throw dbError;
+
+      // Update professor profile if needed
       const prof = professors.find(p => p.id === selectedProfessorId);
-      if (prof && !prof.pin) await supabase.from('professors').update({ phone: phoneInput, pin: pinInput }).eq('id', selectedProfessorId);
+      if (prof && !prof.pin) {
+        try {
+          await supabase.from('professors').update({ phone: phoneInput, pin: pinInput }).eq('id', selectedProfessorId);
+        } catch (pinErr) {
+          console.error("Erro ao salvar PIN:", pinErr);
+          // Don't throw here, the reservation is more important
+        }
+      }
+
       setIsSuccess(true);
-    } catch (err: any) { setError('Erro ao processar: ' + err.message); }
+      fetchMyRequests(); // Refresh history immediately
+      fetchAvailability(); // Refresh availability
+    } catch (err: any) { 
+      console.error("Erro na reserva:", err);
+      setError('Erro ao processar: ' + (err.message || err.details || 'Verifique sua conexão.')); 
+    }
     finally { setIsLoading(false); }
   };
 
