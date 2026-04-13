@@ -229,7 +229,7 @@ export default function TeacherRequest() {
       .from('teacher_requests')
       .select('*')
       .eq('professor_id', selectedProfessorId)
-      .order('scheduled_date', { ascending: false });
+      .order('scheduled_date', { ascending: true });
     if (data) setMyRequests(data);
     setIsLoading(false);
   };

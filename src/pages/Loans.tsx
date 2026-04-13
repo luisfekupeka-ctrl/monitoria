@@ -74,8 +74,8 @@ export function Loans() {
       supabase.from('professors').select('*'),
       supabase.from('notebooks').select('*'),
       supabase.from('loans').select('*, loan_items(notebook_code)'),
-      supabase.from('schedules').select('*'),
-      supabase.from('teacher_requests').select('*, professor:professors(name)')
+      supabase.from('schedules').select('*').order('scheduled_date', { ascending: true }),
+      supabase.from('teacher_requests').select('*, professor:professors(name)').order('scheduled_date', { ascending: true })
     ]);
 
     if (pRes.data) setBeneficiaries(pRes.data);
@@ -1136,9 +1136,11 @@ export function Loans() {
                         className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-sesi-blue/10 outline-none transition-all font-bold text-slate-700"
                       >
                         <option value="">Selecione...</option>
-                         {beneficiaries.map(b => (
-                          <option key={b.id} value={b.id}>{b.name} ({b.type})</option>
-                        ))}
+                         {beneficiaries
+                           .filter(b => ['professor', 'collaborator', 'usuario', 'user'].includes(b.type))
+                           .map(b => (
+                             <option key={b.id} value={b.id}>{b.name} ({b.type})</option>
+                           ))}
                       </select>
                     </div>
 
@@ -1694,9 +1696,11 @@ export function Loans() {
                       className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-sm md:text-base text-slate-700"
                     >
                       <option value="">Selecione o professor...</option>
-                        {beneficiaries.filter(b => b.type === 'professor').map(b => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
+                        {beneficiaries
+                          .filter(b => ['professor', 'collaborator', 'usuario', 'user'].includes(b.type))
+                          .map(b => (
+                            <option key={b.id} value={b.id}>{b.name} ({b.type === 'professor' ? '' : ` - ${b.type}`})</option>
+                          ))}
                       </select>
                     </div>
 
