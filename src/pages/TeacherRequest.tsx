@@ -268,8 +268,8 @@ export default function TeacherRequest() {
         else { morningReserved += itemQty; afternoonReserved += itemQty; }
       });
       result[type] = {
-        morning: Math.max(0, currentAvailable - morningReserved),
-        afternoon: Math.max(0, currentAvailable - afternoonReserved),
+        morning: Math.max(0, typeTotal - morningReserved),
+        afternoon: Math.max(0, typeTotal - afternoonReserved),
         total: typeTotal,
         currentAvailable
       };
@@ -322,11 +322,30 @@ export default function TeacherRequest() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProfessorId) { setError('Selecione seu nome.'); return; }
+    setIsLoading(true);
+    setError(null);
+
+    if (!selectedProfessorId) { 
+      setError('Selecione seu nome.'); 
+      setIsLoading(false);
+      return; 
+    }
     const hasItems = Object.values(requestedItems).some(q => (Number(q)) > 0);
-    if (!hasItems) { setError('Selecione pelo menos um item.'); return; }
-    if (!startTime) { setError('Defina o horário de retirada.'); return; }
-    if (!destination.trim()) { setError('Informe o destino.'); return; }
+    if (!hasItems) { 
+      setError('Selecione pelo menos um item (Notebook, Mouse, etc).'); 
+      setIsLoading(false);
+      return; 
+    }
+    if (!startTime) { 
+      setError('Defina o horário de retirada.'); 
+      setIsLoading(false);
+      return; 
+    }
+    if (!destination.trim()) { 
+      setError('Informe o destino da aula.'); 
+      setIsLoading(false);
+      return; 
+    }
 
     // 24h Restriction Check
     const scheduledDateTime = new Date(`${scheduledDate}T${startTime}`);
@@ -614,6 +633,17 @@ export default function TeacherRequest() {
                     );
                   })}
                 </section>
+
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }} 
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-rose-500/20 border border-rose-500/50 rounded-2xl flex items-center gap-3 text-rose-200 text-xs font-bold"
+                  >
+                    <AlertCircle size={18} className="shrink-0" />
+                    <p>{error}</p>
+                  </motion.div>
+                )}
 
                 <button type="submit" disabled={isLoading} className="w-full h-20 bg-blue-600 hover:bg-blue-500 rounded-[2rem] flex items-center justify-center gap-4 transition-all shadow-xl shadow-blue-600/20 disabled:opacity-50 group">
                   {isLoading ? <div className="size-6 border-4 border-white/20 border-t-white rounded-full animate-spin" /> : <><span className="text-xl font-black italic tracking-tighter">{editingRequestId ? 'SALVAR ALTERAÇÕES' : 'CONFIRMAR RESERVA'}</span><Send size={20}/></>}
