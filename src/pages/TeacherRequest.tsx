@@ -29,7 +29,7 @@ import {
   Tablet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, formatDate, formatTime } from '../lib/utils';
 
 interface EquipmentItem {
   id: string;
@@ -328,6 +328,17 @@ export default function TeacherRequest() {
     if (!startTime) { setError('Defina o horário de retirada.'); return; }
     if (!destination.trim()) { setError('Informe o destino.'); return; }
 
+    // 24h Restriction Check
+    const scheduledDateTime = new Date(`${scheduledDate}T${startTime}`);
+    const now = new Date();
+    const diffInHours = (scheduledDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (diffInHours < 24) {
+      setError('Agendamentos com menos de 24 hrs de antecedência precisam ser feitos na monitoria pois precisa ser verificado a disponibilidade');
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     const payload = {
@@ -508,10 +519,32 @@ export default function TeacherRequest() {
                             <div>
                                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">{dt.toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
                                <h4 className="text-lg font-black">{dt.toLocaleDateString('pt-BR')} <span className="text-slate-500 font-bold ml-1">{req.start_time} {req.return_deadline ? `→ ${req.return_deadline}` : ''}</span></h4>
+                               <div className={cn("px-2.5 py-1 rounded-xl text-[8px] font-black uppercase", req.status === 'pending' ? 'bg-amber-500/10 text-amber-500' : req.status === 'approved' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-700 text-slate-500')}>{req.status}</div>
                             </div>
-                            <div className={cn("px-2.5 py-1 rounded-xl text-[8px] font-black uppercase", req.status === 'pending' ? 'bg-amber-500/10 text-amber-500' : req.status === 'approved' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-700 text-slate-500')}>{req.status}</div>
                           </div>
-                          <div className="flex flex-wrap gap-2 mb-4">{items.map(([key, qty]) => (<div key={key} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 rounded-lg text-xs font-bold text-slate-300 border border-slate-700/30"><span>{qty} {key}</span></div>))}</div>
+                          
+                          {req.created_at && (
+                            <div className="flex items-center gap-2 mb-3 text-slate-500 text-[9px] font-bold italic">
+                              <Clock size={10} />
+                              <span>Solicitado em: {formatDate(req.created_at)} às {formatTime(req.created_at)}</span>
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {items.map(([key, qty]) => (
+                              <div key={key} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 rounded-lg text-xs font-bold text-slate-300 border border-slate-700/30">
+                                <span>{qty} {key}</span>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {req.observations && (
+                            <div className="mb-4 p-3 bg-slate-900/50 rounded-xl border border-white/5">
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Observações</p>
+                              <p className="text-xs text-slate-400 leading-relaxed font-medium">{req.observations}</p>
+                            </div>
+                          )}
+
                           {!isPast && (req.status === 'pending' || req.status === 'approved') && <div className="flex gap-2 pt-4 border-t border-white/5"><button onClick={() => handleEditRequest(req)} className="flex-1 py-3 bg-blue-600/10 text-blue-400 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-blue-600/20"><Edit2 size={12}/> Editar</button><button onClick={() => handleDeleteRequest(req.id)} className="flex-1 py-3 bg-rose-500/10 text-rose-400 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-rose-500/20"><Trash2 size={12}/> Cancelar</button></div>}
                         </div>
                       );
@@ -545,6 +578,16 @@ export default function TeacherRequest() {
                 </motion.div>
 
                 <section className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Destino</label><input type="text" placeholder="Ex: Sala 05, Lab A..." value={destination} onChange={(e) => setDestination(e.target.value)} className="w-full h-14 px-6 bg-slate-800 border-2 border-slate-700 rounded-2xl focus:border-blue-500 outline-none font-bold italic" /></section>
+
+                <section className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Observações / Descrição</label>
+                  <textarea 
+                    placeholder="Detalhes sobre a solicitação (opcional)..." 
+                    value={observations} 
+                    onChange={(e) => setObservations(e.target.value)} 
+                    className="w-full min-h-[100px] p-6 bg-slate-800 border-2 border-slate-700 rounded-2xl focus:border-blue-500 outline-none font-medium text-slate-200 resize-none"
+                  />
+                </section>
 
                 <section className="space-y-3">
                   {EQUIPMENT_TYPES.map(item => {
