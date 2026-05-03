@@ -62,6 +62,8 @@ export function Loans() {
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [startTime, setStartTime] = useState('');
+  const [prepareSearchTerm, setPrepareSearchTerm] = useState('');
+  const [isAutoStarting, setIsAutoStarting] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -69,13 +71,42 @@ export function Loans() {
     fetchData();
   }, []);
 
+  // Automation Effect: Automatically start schedules when the time comes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isAutoStarting) return;
+      
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      
+      // Auto-start schedules
+      const toStart = (schedules || []).filter(s => {
+        if (s.status !== 'pending') return false;
+        if (s.scheduled_date !== todayStr) return false;
+        
+        // Combine date and time correctly
+        const startDateTime = new Date(`${s.scheduled_date}T${s.start_time}`);
+        // Allow a small window or just if now >= startTime
+        return now >= startDateTime && now.getTime() - startDateTime.getTime() < 3600000; // Only auto-start if within 1 hour of scheduled time
+      });
+
+      if (toStart.length > 0) {
+        setIsAutoStarting(true);
+        Promise.all(toStart.map(s => handleStartSchedule(s)))
+          .finally(() => setIsAutoStarting(false));
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, [schedules, beneficiaries, notebooks, user, isAutoStarting]);
+
   const fetchData = async () => {
      const [pRes, nRes, lRes, sRes, trRes] = await Promise.all([
       supabase.from('professors').select('*'),
       supabase.from('notebooks').select('*'),
       supabase.from('loans').select('*, loan_items(notebook_code)'),
-      supabase.from('schedules').select('*').order('scheduled_date', { ascending: true }),
-      supabase.from('teacher_requests').select('*, professor:professors(name)').order('scheduled_date', { ascending: true })
+      supabase.from('schedules').select('*').order('scheduled_date', { ascending: true }).order('start_time', { ascending: true }),
+      supabase.from('teacher_requests').select('*, professor:professors(name)').order('scheduled_date', { ascending: true }).order('start_time', { ascending: true })
     ]);
 
     if (pRes.data) setBeneficiaries(pRes.data);
@@ -903,7 +934,16 @@ export function Loans() {
               );
             })}
 
-            {activeTab === 'agendamentos' && (schedules || []).filter((s: any) => !selectedScheduleDate || s.scheduled_date === selectedScheduleDate).map((schedule) => {
+            {activeTab === 'agendamentos' && (schedules || [])
+              .filter((s: any) => !selectedScheduleDate || s.scheduled_date === selectedScheduleDate)
+              .filter((s: any) => {
+                if (!searchTerm) return true;
+                const prof = beneficiaries.find(b => b.id === s.professor_id);
+                const search = searchTerm.toLowerCase();
+                return (prof?.name || '').toLowerCase().includes(search) || 
+                       s.equipment_codes.some((c: string) => c.toLowerCase().includes(search));
+              })
+              .map((schedule) => {
               const prof = beneficiaries.find(b => b.id === schedule.professor_id);
               return (
                 <motion.div 
@@ -934,6 +974,12 @@ export function Loans() {
                        <span className="font-bold text-slate-400 uppercase tracking-widest">Horário</span>
                        <span className="font-black text-slate-900">{formatTime(schedule.start_time)}</span>
                     </div>
+                    {schedule.return_deadline && (
+                      <div className="flex items-center justify-between text-[10px] md:text-xs">
+                         <span className="font-bold text-slate-400 uppercase tracking-widest">Devolução</span>
+                         <span className="font-black text-sesi-blue">{formatTime(schedule.return_deadline)}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-[10px] md:text-xs">
                        <span className="font-bold text-slate-400 uppercase tracking-widest">Equipamentos</span>
                        <span className="font-black text-sesi-blue">{schedule.equipment_codes?.length || 0} Itens</span>
@@ -969,6 +1015,13 @@ export function Loans() {
 
             {activeTab === 'solicitacoes' && (teacherRequests || [])
               .filter(r => r.status === 'pending' && (!selectedScheduleDate || r.scheduled_date === selectedScheduleDate))
+              .filter(r => {
+                if (!searchTerm) return true;
+                const search = searchTerm.toLowerCase();
+                return (r.professor?.name || '').toLowerCase().includes(search) || 
+                       (r.destination || '').toLowerCase().includes(search) ||
+                       (r.observations || '').toLowerCase().includes(search);
+              })
               .map((request) => (
               <motion.div 
                 key={request.id}
@@ -985,7 +1038,12 @@ export function Loans() {
                     </div>
                     <div>
                       <h4 className="font-black text-slate-900 tracking-tight leading-none text-base md:text-lg">{request.professor?.name || 'Professor'}</h4>
-                      <p className="text-[9px] md:text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Solicitação</p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Solicitação</p>
+                        <span className="text-[8px] md:text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1">
+                          • <Clock9 size={10} /> {formatDate(request.created_at)} {formatTime(request.created_at)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className={cn(
@@ -1007,6 +1065,12 @@ export function Loans() {
                        {formatDate(request.scheduled_date)} • {request.start_time}
                      </span>
                   </div>
+                  {request.return_deadline && (
+                    <div className="flex items-center justify-between text-[10px] md:text-xs">
+                       <span className="font-bold text-slate-400 uppercase tracking-widest">Devolução</span>
+                       <span className="font-black text-sesi-blue">{request.return_deadline}</span>
+                    </div>
+                  )}
                   {request.destination && (
                     <div className="flex items-center justify-between text-[10px] md:text-xs">
                        <span className="font-bold text-slate-400 uppercase tracking-widest">Destino</span>
@@ -1511,35 +1575,56 @@ export function Loans() {
                       </button>
                     ))}
                   </div>
+                  <div className="w-full flex flex-col md:flex-row md:items-center gap-4">
+                    <div className="flex-1 relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                      <input 
+                        type="text"
+                        placeholder="Filtrar por código ou lab..."
+                        value={prepareSearchTerm}
+                        onChange={(e) => setPrepareSearchTerm(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-sesi-blue/10 outline-none font-bold text-slate-600"
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        const requestedQty = (selectedRequest.requested_items as any)[activePreparationType] || 0;
+                        const currentlySelectedCount = preparationItems.filter(code => {
+                          const item = notebooks.find(n => n.code === code);
+                          return item?.type === activePreparationType;
+                        }).length;
+                        
+                        const qtyToSelect = Math.max(0, requestedQty - currentlySelectedCount);
+                        
+                        if (qtyToSelect <= 0) return;
 
-                  <button
-                    onClick={() => {
-                      const requestedQty = (selectedRequest.requested_items as any)[activePreparationType] || 0;
-                      const currentlySelectedCount = preparationItems.filter(code => {
-                        const item = notebooks.find(n => n.code === code);
-                        return item?.type === activePreparationType;
-                      }).length;
-                      
-                      const qtyToSelect = Math.max(0, requestedQty - currentlySelectedCount);
-                      
-                      if (qtyToSelect <= 0) return;
-
-                      const available = notebooks
-                        .filter(n => n.type === activePreparationType && n.status === 'available' && !preparationItems.includes(n.code))
-                        .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true}))
-                        .slice(0, qtyToSelect);
-                      
-                      setPreparationItems(prev => [...prev, ...available.map(n => n.code)]);
-                    }}
-                    className="w-full md:w-auto px-6 py-3 bg-sesi-orange text-white rounded-xl md:rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-sesi-orange/20 hover:scale-105 transition-all text-center"
-                  >
-                    Selecionar Automático
-                  </button>
+                        const available = notebooks
+                          .filter(n => n.type === activePreparationType && n.status === 'available' && !preparationItems.includes(n.code))
+                          .filter(n => {
+                            if (!prepareSearchTerm) return true;
+                            const search = prepareSearchTerm.toLowerCase();
+                            return n.code.toLowerCase().includes(search) || (n.laboratory && n.laboratory.toLowerCase().includes(search));
+                          })
+                          .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true}))
+                          .slice(0, qtyToSelect);
+                        
+                        setPreparationItems(prev => Array.from(new Set([...prev, ...available.map(n => n.code)])));
+                      }}
+                      className="w-full md:w-auto px-6 py-3 bg-sesi-orange text-white rounded-xl md:rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-sesi-orange/20 hover:scale-105 transition-all text-center"
+                    >
+                      Selecionar Automático
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-4 gap-2 md:gap-4">
+                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-4 gap-2 md:gap-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
                   {notebooks
                     .filter(n => n.type === activePreparationType && n.status === 'available')
+                    .filter(n => {
+                      if (!prepareSearchTerm) return true;
+                      const search = prepareSearchTerm.toLowerCase();
+                      return n.code.toLowerCase().includes(search) || (n.laboratory && n.laboratory.toLowerCase().includes(search));
+                    })
                     .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}))
                     .map((item) => (
                       <button

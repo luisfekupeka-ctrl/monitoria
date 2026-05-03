@@ -77,3 +77,18 @@ export interface StockMovement {
   beneficiaryId?: string;
   beneficiaryName?: string;
 }
+export interface TeacherRequest {
+  id: string;
+  professor_id: string;
+  scheduled_date: string;
+  start_time: string;
+  return_deadline?: string;
+  requested_items: Record<string, number>;
+  status: 'pending' | 'approved' | 'rejected';
+  destination?: string;
+  observations?: string;
+  created_at: string;
+  professor?: {
+    name: string;
+  };
+}
