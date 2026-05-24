@@ -166,8 +166,11 @@ export function Loans() {
         const end = parseInt(parts[1].replace(/[^0-9]/g, ''));
         
         const rangeItems = [];
+        const numStr = parts[0].replace(/[^0-9]/g, '');
+        const padLength = numStr.length;
+
         for (let i = start; i <= end; i++) {
-          rangeItems.push(`${prefix}${i.toString().padStart(2, '0')}`);
+          rangeItems.push(`${prefix}${i.toString().padStart(padLength, '0')}`);
         }
         
         const validItems = rangeItems.filter(c => {
@@ -182,7 +185,7 @@ export function Loans() {
     }
 
     // Handle single item
-    const nb = notebooks.find(n => n.code === cleanCode);
+    const nb = notebooks.find(n => (n.code || '').trim().toUpperCase() === cleanCode);
     if (!nb) {
       setError(`Equipamento ${cleanCode} não encontrado.`);
       return;
@@ -216,8 +219,8 @@ export function Loans() {
 
   const toggleGridItem = (code: string) => {
     if (rangeStart) {
-      // Range selection mode
-      const allCodes = notebooks.map(n => n.code);
+      // Range selection mode - use modalItems to stay within the current category
+      const allCodes = modalItems.map(n => n.code);
       const startIndex = allCodes.indexOf(rangeStart);
       const endIndex = allCodes.indexOf(code);
       
@@ -226,7 +229,7 @@ export function Loans() {
       
       const rangeCodes = allCodes.slice(start, end + 1);
       const availableRangeCodes = rangeCodes.filter(c => {
-        const nb = notebooks.find(n => n.code === c);
+        const nb = modalItems.find(n => n.code === c);
         return nb && nb.status === 'available';
       });
 
@@ -261,7 +264,7 @@ export function Loans() {
     }
 
     try {
-      const nb = notebooks.find(n => n.code.trim().toUpperCase() === cleanCode);
+      const nb = notebooks.find(n => (n.code || '').trim().toUpperCase() === cleanCode);
       if (!nb) {
          setError(`Equipamento ${cleanCode} não encontrado no sistema.`);
          return;

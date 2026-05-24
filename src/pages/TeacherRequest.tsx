@@ -362,13 +362,13 @@ export default function TeacherRequest() {
       return; 
     }
 
-    // 24h Restriction Check
+    // 12h Restriction Check
     const scheduledDateTime = new Date(`${scheduledDate}T${startTime}`);
     const now = new Date();
     const diffInHours = (scheduledDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    if (diffInHours < 24) {
-      setError('Agendamentos com menos de 24 hrs de antecedência precisam ser feitos na monitoria pois precisa ser verificado a disponibilidade');
+    if (diffInHours < 12) {
+      setError('Agendamentos com menos de 12 hrs de antecedência precisam ser feitos na monitoria pois precisa ser verificado a disponibilidade');
       setIsLoading(false);
       return;
     }
