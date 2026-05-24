@@ -598,6 +598,34 @@ export function Loans() {
     }
   };
 
+  const handleClearOldSchedules = async () => {
+    if (!confirm('AVISO: Isso irá apagar permanentemente todos os agendamentos e solicitações feitos nos meses anteriores. Deseja continuar?')) return;
+    try {
+      const today = new Date();
+      const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+
+      const { error: sError } = await supabase
+        .from('schedules')
+        .delete()
+        .lt('scheduled_date', firstDayOfCurrentMonth);
+      
+      if (sError) throw sError;
+
+      const { error: tError } = await supabase
+        .from('teacher_requests')
+        .delete()
+        .lt('scheduled_date', firstDayOfCurrentMonth);
+
+      if (tError) throw tError;
+
+      setSuccess('Agendamentos antigos limpos com sucesso!');
+      fetchData();
+    } catch (err: any) {
+      setError('Erro ao limpar agendamentos antigos: ' + err.message);
+    }
+  };
+
+
   // Filter and sort items for the modal grid using natural sort
   const modalItems = notebooks
     .filter(n => n.type === activeType)
@@ -805,6 +833,15 @@ export function Loans() {
                    </button>
                  )}
                </div>
+             )}
+             {activeTab === 'agendamentos' && (schedules || []).length > 0 && (
+               <button
+                 onClick={handleClearOldSchedules}
+                 className="px-3 md:px-4 py-1.5 md:py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2"
+               >
+                 <Trash2 size={14} />
+                 Limpar Antigos
+               </button>
              )}
              {activeTab === 'historico' && history.length > 0 && (
                <button
