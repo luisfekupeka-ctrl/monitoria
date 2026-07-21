@@ -8,7 +8,8 @@ import {
   XCircle,
   Mail,
   User as UserIcon,
-  Trash2
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from '../types';
@@ -22,6 +23,9 @@ export function AdminManagement() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', name: '', email: '', password: '', role: 'operator' as User['role'] });
+  
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -77,6 +81,32 @@ export function AdminManagement() {
       alert('Colaborador cadastrado com sucesso!');
     } catch (err: any) {
       alert('Erro ao adicionar usuário: ' + (err.message || 'Erro desconhecido'));
+    }
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          username: editingUser.username,
+          name: editingUser.name,
+          email: editingUser.email,
+          password: editingUser.password,
+          role: editingUser.role
+        })
+        .eq('id', editingUser.id);
+
+      if (error) throw error;
+      
+      setIsEditModalOpen(false);
+      setEditingUser(null);
+      fetchUsers();
+      alert('Colaborador atualizado com sucesso!');
+    } catch (err: any) {
+      alert('Erro ao atualizar usuário: ' + (err.message || 'Erro desconhecido'));
     }
   };
 
@@ -171,6 +201,16 @@ export function AdminManagement() {
                       >
                         {user.approved ? <XCircle size={14} /> : <CheckCircle2 size={14} />}
                         {user.approved ? 'DESATIVAR' : 'APROVAR'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingUser(user);
+                          setIsEditModalOpen(true);
+                        }}
+                        className="p-1.5 bg-slate-100 text-slate-400 hover:text-sesi-blue hover:bg-blue-50 rounded-xl transition-all"
+                        title="Editar Usuário"
+                      >
+                        <Edit2 size={16} />
                       </button>
                       <button
                         onClick={async () => {
@@ -337,6 +377,84 @@ export function AdminManagement() {
                 </button>
                 <button type="submit" className="flex-1 h-14 bg-sesi-yellow text-slate-900 font-black rounded-2xl hover:bg-amber-400 transition-all shadow-lg shadow-sesi-yellow/20">
                   CADASTRAR
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && editingUser && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="text-2xl font-black text-slate-900">Editar Colaborador</h3>
+              <button onClick={() => { setIsEditModalOpen(false); setEditingUser(null); }} className="size-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 transition-all">
+                <XCircle size={24} />
+              </button>
+            </div>
+            <form className="p-8 space-y-4" onSubmit={handleEditUser}>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
+                <input 
+                  required 
+                  value={editingUser.name}
+                  onChange={e => setEditingUser({...editingUser, name: e.target.value})}
+                  className="w-full h-14 px-6 bg-slate-50 border-transparent rounded-2xl focus:bg-white focus:ring-4 focus:ring-sesi-blue/10 transition-all outline-none font-bold text-slate-700" 
+                  placeholder="Ex: João Silva"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Usuário</label>
+                  <input 
+                    required 
+                    value={editingUser.username}
+                    onChange={e => setEditingUser({...editingUser, username: e.target.value})}
+                    className="w-full h-14 px-6 bg-slate-50 border-transparent rounded-2xl focus:bg-white focus:ring-4 focus:ring-sesi-blue/10 transition-all outline-none font-bold text-slate-700" 
+                    placeholder="joao.silva"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha (Nova/Atual)</label>
+                  <input 
+                    type="password"
+                    required 
+                    value={editingUser.password || ''}
+                    onChange={e => setEditingUser({...editingUser, password: e.target.value})}
+                    className="w-full h-14 px-6 bg-slate-50 border-transparent rounded-2xl focus:bg-white focus:ring-4 focus:ring-sesi-blue/10 transition-all outline-none font-bold text-slate-700" 
+                    placeholder="Sua senha"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail</label>
+                <input 
+                  type="email"
+                  required 
+                  value={editingUser.email || ''}
+                  onChange={e => setEditingUser({...editingUser, email: e.target.value})}
+                  className="w-full h-14 px-6 bg-slate-50 border-transparent rounded-2xl focus:bg-white focus:ring-4 focus:ring-sesi-blue/10 transition-all outline-none font-bold text-slate-700" 
+                  placeholder="joao@monitoria.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cargo / Permissão</label>
+                <select 
+                  value={editingUser.role}
+                  onChange={e => setEditingUser({...editingUser, role: e.target.value as User['role']})}
+                  className="w-full h-14 px-6 bg-slate-50 border-transparent rounded-2xl focus:bg-white focus:ring-4 focus:ring-sesi-blue/10 transition-all outline-none font-bold text-slate-700 appearance-none"
+                >
+                  <option value="operator">Operador (Colaborador)</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+              <div className="pt-6 flex gap-3">
+                <button type="button" onClick={() => { setIsEditModalOpen(false); setEditingUser(null); }} className="flex-1 h-14 bg-slate-100 text-slate-600 font-black rounded-2xl hover:bg-slate-200 transition-all">
+                  CANCELAR
+                </button>
+                <button type="submit" className="flex-1 h-14 bg-sesi-yellow text-slate-900 font-black rounded-2xl hover:bg-amber-400 transition-all shadow-lg shadow-sesi-yellow/20">
+                  SALVAR
                 </button>
               </div>
             </form>
