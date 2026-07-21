@@ -118,11 +118,13 @@ export function Stock() {
           const unit = row['Unidade'] || row['unidade'] || row['unit'] || row['Unit'] || row['UNIDADE'] || 'un';
           const minQuantity = Number(row['Mínimo'] || row['minimo'] || row['Minimo'] || row['min_quantity'] || row['Min'] || row['min'] || 0);
 
+          const finalCode = code.toString().trim() || 'PRD-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+
           return {
             id: Math.random().toString(36).substr(2, 9),
             name: name.toString().trim(),
             category: category.toString().trim(),
-            code: code.toString().trim(),
+            code: finalCode,
             quantity: isNaN(quantity) ? 0 : quantity,
             unit: unit.toString().trim(),
             min_quantity: isNaN(minQuantity) ? 0 : minQuantity

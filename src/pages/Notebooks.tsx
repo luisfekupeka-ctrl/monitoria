@@ -131,9 +131,11 @@ export function Notebooks() {
 
           const lab = row['Laboratório'] || row['laboratorio'] || row['lab'] || row['Lab'] || row['LABORATÓRIO'] || '';
 
+          const finalCode = code.toString().trim() || 'EQP-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+
           return {
             id: Math.random().toString(36).substr(2, 9),
-            code: code.toString().trim(),
+            code: finalCode,
             type: mappedType,
             status: 'available',
             laboratory: lab.toString().trim() || null
