@@ -56,7 +56,7 @@ export function Login() {
           .select('*')
           .eq('username', username)
           .eq('password', password)
-          .single();
+          .maybeSingle();
 
         if (sbError || !data) {
           setError('Usuário ou senha inválidos');
