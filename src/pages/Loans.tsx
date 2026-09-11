@@ -827,29 +827,27 @@ export function Loans() {
   };
 
   const handleClearOldSchedules = async () => {
-    if (!confirm('AVISO: Isso irá apagar permanentemente todos os agendamentos e solicitações feitos nos meses anteriores. Deseja continuar?')) return;
+    const todayStr = getLocalDateString();
+    if (!confirm(`AVISO: Deseja apagar permanentemente todas as solicitações e agendamentos com data anterior a hoje (${todayStr})?`)) return;
     try {
-      const today = new Date();
-      const firstDayOfCurrentMonth = getLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1));
-
       const { error: sError } = await supabase
         .from('schedules')
         .delete()
-        .lt('scheduled_date', firstDayOfCurrentMonth);
+        .lt('scheduled_date', todayStr);
       
       if (sError) throw sError;
 
       const { error: tError } = await supabase
         .from('teacher_requests')
         .delete()
-        .lt('scheduled_date', firstDayOfCurrentMonth);
+        .lt('scheduled_date', todayStr);
 
       if (tError) throw tError;
 
-      setSuccess('Agendamentos antigos limpos com sucesso!');
+      setSuccess('Registros anteriores a hoje limpos com sucesso!');
       fetchData();
     } catch (err: any) {
-      setError('Erro ao limpar agendamentos antigos: ' + err.message);
+      setError('Erro ao limpar registros antigos: ' + err.message);
     }
   };
 
