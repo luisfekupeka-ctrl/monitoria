@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Search, 
   Plus, 
@@ -21,14 +21,59 @@ import {
   Clock,
   Clock9,
   Bell,
-  Tablet
+  Tablet,
+  Repeat
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Beneficiary, Notebook, Loan } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { cn, formatDate, formatTime, getTimezoneOffset, formatReturnDate } from '../lib/utils';
+import { cn, formatDate, formatTime, getTimezoneOffset, formatReturnDate, getLocalDateString } from '../lib/utils';
 import { supabase } from '../lib/supabase';
+
+function getWeekdayName(dateStr: string) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('pt-BR', { weekday: 'long' });
+}
+
+function getMonthName(dateStr: string) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('pt-BR', { month: 'long' });
+}
+
+function getRecurringDates(baseDateStr: string, mode: 'month' | '4weeks'): string[] {
+  if (!baseDateStr) return [];
+  const [y, m, d] = baseDateStr.split('-').map(Number);
+  const baseDate = new Date(y, m - 1, d);
+  const targetMonth = baseDate.getMonth();
+
+  const results: string[] = [baseDateStr];
+
+  if (mode === 'month') {
+    let curr = new Date(y, m - 1, d + 7);
+    while (curr.getMonth() === targetMonth) {
+      const yStr = curr.getFullYear();
+      const mStr = String(curr.getMonth() + 1).padStart(2, '0');
+      const dStr = String(curr.getDate()).padStart(2, '0');
+      results.push(`${yStr}-${mStr}-${dStr}`);
+      curr.setDate(curr.getDate() + 7);
+    }
+  } else if (mode === '4weeks') {
+    for (let i = 1; i <= 4; i++) {
+      const curr = new Date(y, m - 1, d + (i * 7));
+      const yStr = curr.getFullYear();
+      const mStr = String(curr.getMonth() + 1).padStart(2, '0');
+      const dStr = String(curr.getDate()).padStart(2, '0');
+      results.push(`${yStr}-${mStr}-${dStr}`);
+    }
+  }
+
+  return results;
+}
 
 export function Loans() {
   const { user } = useAuth();
@@ -48,7 +93,7 @@ export function Loans() {
   const [activeType, setActiveType] = useState<Notebook['type']>('notebook');
   const [showGrid, setShowGrid] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-   const [rangeStart, setRangeStart] = useState<string | null>(null);
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
   
   // New States for Advanced Features
   const [activeTab, setActiveTab] = useState<'ativos' | 'agendamentos' | 'historico' | 'solicitacoes'>('ativos');
@@ -59,16 +104,63 @@ export function Loans() {
   const [preparationItems, setPreparationItems] = useState<string[]>([]);
   const [activePreparationType, setActivePreparationType] = useState<string>('notebook');
   const [returnDeadline, setReturnDeadline] = useState('');
-  const [selectedScheduleDate, setSelectedScheduleDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Date and status filter states - default to upcoming dates and active statuses
+  const [requestDateFilterMode, setRequestDateFilterMode] = useState<'upcoming' | 'today' | 'next7' | 'all' | 'past' | 'custom'>('upcoming');
+  const [requestStatusFilter, setRequestStatusFilter] = useState<'pending_approved' | 'pending' | 'prepared' | 'approved' | 'all'>('pending_approved');
+  const [scheduleDateFilterMode, setScheduleDateFilterMode] = useState<'upcoming' | 'today' | 'next7' | 'all' | 'custom'>('upcoming');
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState(getLocalDateString());
+
+  // Schedule Modal replication states
+  const [manualScheduleDate, setManualScheduleDate] = useState(getLocalDateString());
+  const [isScheduleReplicating, setIsScheduleReplicating] = useState(false);
+  const [scheduleReplicationMode, setScheduleReplicationMode] = useState<'month' | '4weeks'>('month');
+  const [scheduleReplicationDates, setScheduleReplicationDates] = useState<string[]>([]);
+
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [startTime, setStartTime] = useState('');
   const [prepareSearchTerm, setPrepareSearchTerm] = useState('');
   const [isAutoStarting, setIsAutoStarting] = useState(false);
 
+  useEffect(() => {
+    if (isScheduleReplicating) {
+      setScheduleReplicationDates(getRecurringDates(manualScheduleDate, scheduleReplicationMode));
+    } else {
+      setScheduleReplicationDates([manualScheduleDate]);
+    }
+  }, [manualScheduleDate, scheduleReplicationMode, isScheduleReplicating]);
+
   const inputRef = useRef<HTMLInputElement>(null);
 
-   useEffect(() => {
+  useEffect(() => {
     fetchData();
+
+    // Auto-polling interval every 15 seconds to ensure synchronization
+    const pollInterval = setInterval(() => {
+      fetchData();
+    }, 15000);
+
+    // Supabase Realtime channel for instant reactive updates
+    const channel = supabase
+      .channel('loans-realtime-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teacher_requests' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'loans' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notebooks' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    return () => {
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Automation Effect: Automatically start schedules when the time comes
@@ -77,7 +169,7 @@ export function Loans() {
       if (isAutoStarting) return;
       
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
+      const todayStr = getLocalDateString(now);
       
       // Auto-start schedules
       const toStart = (schedules || []).filter(s => {
@@ -85,7 +177,10 @@ export function Loans() {
         if (s.scheduled_date !== todayStr) return false;
         
         // Combine date and time correctly
-        const startDateTime = new Date(`${s.scheduled_date}T${s.start_time}`);
+        const timeStr = s.start_time?.includes('T') ? s.start_time : `${s.scheduled_date}T${s.start_time}`;
+        const startDateTime = new Date(timeStr);
+        if (isNaN(startDateTime.getTime())) return false;
+        
         // Allow a small window or just if now >= startTime
         return now >= startDateTime && now.getTime() - startDateTime.getTime() < 3600000; // Only auto-start if within 1 hour of scheduled time
       });
@@ -101,15 +196,20 @@ export function Loans() {
   }, [schedules, beneficiaries, notebooks, user, isAutoStarting]);
 
   const fetchData = async () => {
-     const [pRes, nRes, lRes, sRes, trRes] = await Promise.all([
-      supabase.from('professors').select('*'),
-      supabase.from('notebooks').select('*'),
-      supabase.from('loans').select('*, loan_items(notebook_code)'),
-      supabase.from('schedules').select('*').order('scheduled_date', { ascending: true }).order('start_time', { ascending: true }),
-      supabase.from('teacher_requests').select('*, professor:professors(name)').order('scheduled_date', { ascending: true }).order('start_time', { ascending: true })
-    ]);
+    const today = new Date();
+    // Query from 3 months ago onward to keep history without losing recent/upcoming requests
+    const cutoffDate = getLocalDateString(new Date(today.getFullYear(), today.getMonth() - 3, 1));
 
-    if (pRes.data) setBeneficiaries(pRes.data);
+    try {
+      const [pRes, nRes, lRes, sRes, trRes] = await Promise.all([
+        supabase.from('professors').select('*'),
+        supabase.from('notebooks').select('*'),
+        supabase.from('loans').select('*, loan_items(notebook_code)').order('loan_date', { ascending: false }).limit(200),
+        supabase.from('schedules').select('*').gte('scheduled_date', cutoffDate).order('scheduled_date', { ascending: true }).order('start_time', { ascending: true }).limit(2000),
+        supabase.from('teacher_requests').select('*, professor:professors(name)').gte('scheduled_date', cutoffDate).order('scheduled_date', { ascending: true }).order('start_time', { ascending: true }).limit(2000)
+      ]);
+
+      if (pRes.data) setBeneficiaries(pRes.data);
       if (nRes.data) {
         const sortedNotebooks = [...nRes.data]
           .sort((a, b) => {
@@ -123,26 +223,42 @@ export function Loans() {
           }));
         setNotebooks(sortedNotebooks);
       }
-    if (lRes.data) {
-      const mappedLoans = (lRes.data || []).map(l => ({
-        ...l,
-        beneficiaryId: l.beneficiary_id,
-        beneficiaryName: l.beneficiary_name || 'N/A',
-        loanDate: l.loan_date,
-        returnDate: l.return_date,
-        returnDeadline: l.return_deadline,
-        operatorId: l.operator_id,
-        operatorName: l.operator_name || 'Monitor',
-        items: Array.isArray(l.loan_items) ? l.loan_items.map((item: any) => item.notebook_code) : []
-      }));
-       setActiveLoans(mappedLoans.filter((l: any) => l.status === 'active'));
-       setHistory(mappedLoans.filter((l: any) => l.status === 'returned' || l.status === 'completed' || l.status === 'returned_partial'));
-    }
-    if (sRes.data) {
-      setSchedules(sRes.data);
-    }
-    if (trRes.data) {
-      setTeacherRequests(trRes.data);
+      if (lRes.data) {
+        const mappedLoans = (lRes.data || []).map(l => ({
+          ...l,
+          beneficiaryId: l.beneficiary_id,
+          beneficiaryName: l.beneficiary_name || 'N/A',
+          loanDate: l.loan_date,
+          returnDate: l.return_date,
+          returnDeadline: l.return_deadline,
+          operatorId: l.operator_id,
+          operatorName: l.operator_name || 'Monitor',
+          items: Array.isArray(l.loan_items) ? l.loan_items.map((item: any) => item.notebook_code) : []
+        }));
+        setActiveLoans(mappedLoans.filter((l: any) => l.status === 'active'));
+        setHistory(mappedLoans.filter((l: any) => l.status === 'returned' || l.status === 'completed' || l.status === 'returned_partial'));
+      }
+      if (sRes.data) {
+        setSchedules(sRes.data);
+      }
+      
+      let rawTrData = trRes.data;
+      if (!rawTrData && trRes.error) {
+        console.warn("Retrying teacher_requests select without join:", trRes.error);
+        const fallback = await supabase.from('teacher_requests').select('*').gte('scheduled_date', cutoffDate).order('scheduled_date', { ascending: true }).limit(2000);
+        rawTrData = fallback.data;
+      }
+
+      if (rawTrData) {
+        const profMap = Object.fromEntries((pRes.data || []).map((p: any) => [p.id, p.name]));
+        const mappedRequests = rawTrData.map((r: any) => ({
+          ...r,
+          professor: r.professor?.name ? r.professor : { name: profMap[r.professor_id] || 'Professor' }
+        }));
+        setTeacherRequests(mappedRequests);
+      }
+    } catch (fetchErr) {
+      console.error("Error fetching data in Loans:", fetchErr);
     }
   };
 
@@ -152,6 +268,75 @@ export function Loans() {
     return beneficiaryName.toLowerCase().includes(searchTerm.toLowerCase()) ||
            items.some(item => (item || '').toLowerCase().includes(searchTerm.toLowerCase()));
   });
+
+  const filteredTeacherRequests = useMemo(() => {
+    const todayStr = getLocalDateString();
+    return (teacherRequests || [])
+      .filter(r => {
+        // Status filter
+        if (requestStatusFilter === 'pending' && r.status !== 'pending') return false;
+        if (requestStatusFilter === 'approved' && r.status !== 'approved') return false;
+        if (requestStatusFilter === 'prepared' && r.status !== 'prepared') return false;
+        if (requestStatusFilter === 'pending_approved' && !['pending', 'approved', 'prepared'].includes(r.status)) return false;
+
+        // Date filter
+        if (requestDateFilterMode === 'upcoming' && r.scheduled_date < todayStr) return false;
+        if (requestDateFilterMode === 'today' && r.scheduled_date !== todayStr) return false;
+        if (requestDateFilterMode === 'past' && r.scheduled_date >= todayStr) return false;
+        if (requestDateFilterMode === 'custom' && selectedScheduleDate && r.scheduled_date !== selectedScheduleDate) return false;
+        if (requestDateFilterMode === 'next7') {
+          const d = new Date(r.scheduled_date + 'T00:00:00');
+          const now = new Date(todayStr + 'T00:00:00');
+          const diffDays = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+          if (diffDays < 0 || diffDays > 7) return false;
+        }
+
+        // Search filter
+        if (searchTerm) {
+          const search = searchTerm.toLowerCase();
+          return (r.professor?.name || '').toLowerCase().includes(search) || 
+                 (r.destination || '').toLowerCase().includes(search) ||
+                 (r.observations || '').toLowerCase().includes(search);
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (requestDateFilterMode === 'past') {
+          return b.scheduled_date.localeCompare(a.scheduled_date) || (b.start_time || '').localeCompare(a.start_time || '');
+        }
+        return a.scheduled_date.localeCompare(b.scheduled_date) || (a.start_time || '').localeCompare(b.start_time || '');
+      });
+  }, [teacherRequests, requestStatusFilter, requestDateFilterMode, selectedScheduleDate, searchTerm]);
+
+  const filteredSchedules = useMemo(() => {
+    const todayStr = getLocalDateString();
+    return (schedules || [])
+      .filter((s: any) => {
+        // Date filter
+        if (scheduleDateFilterMode === 'upcoming' && s.scheduled_date < todayStr) return false;
+        if (scheduleDateFilterMode === 'today' && s.scheduled_date !== todayStr) return false;
+        if (scheduleDateFilterMode === 'custom' && selectedScheduleDate && s.scheduled_date !== selectedScheduleDate) return false;
+        if (scheduleDateFilterMode === 'next7') {
+          const d = new Date(s.scheduled_date + 'T00:00:00');
+          const now = new Date(todayStr + 'T00:00:00');
+          const diffDays = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+          if (diffDays < 0 || diffDays > 7) return false;
+        }
+
+        // Search filter
+        if (searchTerm) {
+          const prof = beneficiaries.find(b => b.id === s.professor_id);
+          const search = searchTerm.toLowerCase();
+          return (prof?.name || '').toLowerCase().includes(search) || 
+                 (s.equipment_codes || []).some((c: string) => c.toLowerCase().includes(search));
+        }
+        return true;
+      })
+      .sort((a: any, b: any) => {
+        return a.scheduled_date.localeCompare(b.scheduled_date) || (a.start_time || '').localeCompare(b.start_time || '');
+      });
+  }, [schedules, scheduleDateFilterMode, selectedScheduleDate, searchTerm, beneficiaries]);
+
 
   const handleAddItem = (code: string) => {
     const cleanCode = code.trim().toUpperCase();
@@ -428,27 +613,34 @@ export function Loans() {
     if (!beneficiary) return;
 
     try {
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
+      const targetDates = isScheduleReplicating && scheduleReplicationDates.length > 0
+        ? scheduleReplicationDates
+        : [manualScheduleDate || getLocalDateString()];
+
       const tzOffset = getTimezoneOffset();
 
-      const sbSchedule = {
+      const newSchedules = targetDates.map(dateStr => ({
         id: crypto.randomUUID(),
         professor_id: selectedBeneficiaryId,
         equipment_codes: selectedItems,
         scheduled_date: dateStr,
-        start_time: startTime ? `${dateStr}T${startTime}:00${tzOffset}` : now.toISOString(),
-        return_deadline: returnDeadline || null,
+        start_time: startTime ? `${dateStr}T${startTime}:00${tzOffset}` : `${dateStr}T12:00:00${tzOffset}`,
+        return_deadline: returnDeadline ? `${dateStr}T${returnDeadline}:00${tzOffset}` : null,
         status: 'pending',
         created_by: user?.name
-      };
+      }));
 
-      const { error: sError } = await supabase.from('schedules').insert(sbSchedule);
+      const { error: sError } = await supabase.from('schedules').insert(newSchedules);
       if (sError) throw sError;
 
-      setSuccess('Agendamento realizado com sucesso!');
+      setSuccess(targetDates.length > 1 
+        ? `${targetDates.length} agendamentos criados com sucesso!` 
+        : 'Agendamento realizado com sucesso!');
       setSelectedBeneficiaryId('');
+      setSelectedItems([]);
       setReturnDeadline('');
+      setStartTime('');
+      setIsScheduleReplicating(false);
       setIsScheduleModalOpen(false);
       fetchData();
     } catch (err: any) {
@@ -459,10 +651,11 @@ export function Loans() {
   const handleStartSchedule = async (schedule: any) => {
     try {
       const loanId = Date.now().toString();
+      const beneficiary = beneficiaries.find(b => b.id === schedule.professor_id);
       const sbLoan = {
         id: loanId,
         beneficiary_id: schedule.professor_id,
-        beneficiary_name: beneficiaries.find(b => b.id === schedule.professor_id)?.name || 'N/A',
+        beneficiary_name: beneficiary?.name || 'N/A',
         operator_id: user?.id,
         operator_name: user?.name,
         status: 'active',
@@ -470,7 +663,7 @@ export function Loans() {
         return_deadline: schedule.return_deadline
       };
 
-      const loanItems = schedule.equipment_codes.map((code: string) => ({
+      const loanItems = (schedule.equipment_codes || []).map((code: string) => ({
         loan_id: loanId,
         notebook_code: code
       }));
@@ -481,8 +674,27 @@ export function Loans() {
       const { error: liError } = await supabase.from('loan_items').insert(loanItems);
       if (liError) throw liError;
 
+      // Update notebooks status to loaned
+      if (schedule.equipment_codes?.length > 0) {
+        await Promise.all(schedule.equipment_codes.map(async (code: string) => {
+          const cleanCode = code.trim().toUpperCase();
+          const nb = notebooks.find(n => (n.code || '').trim().toUpperCase() === cleanCode);
+          if (nb) {
+            return supabase.from('notebooks').update({ status: 'loaned' }).eq('id', nb.id);
+          }
+        }));
+      }
+
+      // Delete the schedule since it has now been started as a loan
       const { error: sError } = await supabase.from('schedules').delete().eq('id', schedule.id);
       if (sError) throw sError;
+
+      // Mark associated teacher request as completed if exists
+      await supabase.from('teacher_requests')
+        .update({ status: 'completed' })
+        .eq('professor_id', schedule.professor_id)
+        .eq('scheduled_date', schedule.scheduled_date)
+        .in('status', ['prepared', 'approved', 'pending']);
 
       setSuccess('Agendamento iniciado com sucesso!');
       fetchData();
@@ -504,7 +716,7 @@ export function Loans() {
   };
 
   const handleApproveRequest = async (request: any) => {
-    if (!confirm(`Aprovar solicitação de ${request.professor.name} para ${request.equipment_codes.length} itens?`)) return;
+    if (!confirm(`Aprovar solicitação de ${request.professor?.name || 'Professor'}?`)) return;
     try {
       const { error } = await supabase.from('teacher_requests')
         .update({ status: 'approved' })
@@ -518,7 +730,7 @@ export function Loans() {
   };
 
   const handleRejectRequest = async (request: any) => {
-    const totalItems = Object.values(request.requested_items as Record<string, number>).reduce((a, b) => a + b, 0);
+    const totalItems = Object.values(request.requested_items as Record<string, number> || {}).reduce((a, b) => a + b, 0);
     if (!confirm(`Rejeitar solicitação de ${request.professor?.name || 'Professor'} para ${totalItems} itens?`)) return;
     try {
       const { error } = await supabase.from('teacher_requests')
@@ -532,14 +744,30 @@ export function Loans() {
     }
   };
 
+  const handleDeleteRequest = async (id: string) => {
+    if (!confirm('Deseja excluir permanentemente esta solicitação?')) return;
+    try {
+      const { error } = await supabase.from('teacher_requests').delete().eq('id', id);
+      if (error) throw error;
+      setSuccess('Solicitação excluída com sucesso!');
+      fetchData();
+    } catch (err: any) {
+      setError('Erro ao excluir solicitação: ' + err.message);
+    }
+  };
+
   const handleOpenPrepare = (request: any) => {
     setSelectedRequest(request);
     setPreparationItems([]);
     
     // Set first available requested type as active
-    const hasItems = Object.values(request.requested_items as Record<string, number>).some(q => q > 0);
-    const types = Object.keys(request.requested_items).filter(k => request.requested_items[k] > 0);
-    if (types.length > 0) setActivePreparationType(types[0]);
+    const reqItems = request.requested_items || {};
+    const types = Object.keys(reqItems).filter(k => reqItems[k] > 0);
+    if (types.includes('kit') || types.length === 0) {
+      setActivePreparationType('notebook');
+    } else {
+      setActivePreparationType(types[0]);
+    }
     
     setIsPrepareModalOpen(true);
   };
@@ -602,7 +830,7 @@ export function Loans() {
     if (!confirm('AVISO: Isso irá apagar permanentemente todos os agendamentos e solicitações feitos nos meses anteriores. Deseja continuar?')) return;
     try {
       const today = new Date();
-      const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+      const firstDayOfCurrentMonth = getLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1));
 
       const { error: sError } = await supabase
         .from('schedules')
@@ -625,7 +853,6 @@ export function Loans() {
     }
   };
 
-
   // Filter and sort items for the modal grid using natural sort
   const modalItems = notebooks
     .filter(n => n.type === activeType)
@@ -636,13 +863,14 @@ export function Loans() {
 
       // Check if scheduled for NOW
       const now = new Date();
+      const todayStr = getLocalDateString(now);
       const isScheduledNow = schedules.some(s => {
         if (s.status !== 'pending') return false;
         const start = new Date(s.start_time);
-        const deadline = s.return_deadline ? new Date(`${now.toISOString().split('T')[0]}T${s.return_deadline}`) : null;
+        const deadline = s.return_deadline ? new Date(`${todayStr}T${s.return_deadline}`) : null;
         
         // Simple check: if scheduled today and start <= now, and (no deadline or now < deadline)
-        const isToday = s.scheduled_date === now.toISOString().split('T')[0];
+        const isToday = s.scheduled_date === todayStr;
         if (!isToday) return false;
         
         const isAfterStart = now >= start;
@@ -710,9 +938,9 @@ export function Loans() {
             >
               <tab.icon size={16} className={activeTab === tab.id ? tab.color : 'text-slate-400'} />
               <span>{tab.fullLabel}</span>
-              {tab.id === 'solicitacoes' && teacherRequests.filter(r => r.status === 'pending').length > 0 && (
-                <span className="size-3 md:size-4 bg-rose-500 text-white text-[7px] md:text-[8px] flex items-center justify-center rounded-full">
-                  {teacherRequests.filter(r => r.status === 'pending').length}
+              {tab.id === 'solicitacoes' && teacherRequests.filter(r => ['pending', 'approved', 'prepared'].includes(r.status)).length > 0 && (
+                <span className="size-3 md:size-4 bg-rose-500 text-white text-[7px] md:text-[8px] flex items-center justify-center rounded-full font-bold">
+                  {teacherRequests.filter(r => ['pending', 'approved', 'prepared'].includes(r.status)).length}
                 </span>
               )}
             </button>
@@ -805,44 +1033,138 @@ export function Loans() {
 
       {/* Main Grid Section */}
       <div className="space-y-6 md:space-y-8 pt-4 md:pt-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="size-8 md:size-10 rounded-xl md:rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg">
               <ArrowDownCircle size={18} />
             </div>
             <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-              {activeTab === 'ativos' ? 'Fluxo de Saída' : activeTab === 'agendamentos' ? 'Agendamentos' : activeTab === 'solicitacoes' ? 'Solicitações' : 'Histórico'}
+              {activeTab === 'ativos' ? 'Fluxo de Saída' : activeTab === 'agendamentos' ? 'Agendamentos' : activeTab === 'solicitacoes' ? 'Solicitações de Professores' : 'Histórico'}
             </h2>
           </div>
-          <div className="flex flex-wrap items-center gap-3 md:gap-4">
-             {(activeTab === 'agendamentos' || activeTab === 'solicitacoes') && (
-               <div className="flex items-center gap-2">
-                 <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">Filtro:</span>
-                 <input 
-                   type="date"
-                   value={selectedScheduleDate}
-                   onChange={(e) => setSelectedScheduleDate(e.target.value)}
-                   className="px-3 md:px-4 py-1.5 md:py-2 bg-white border border-slate-200 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-sm outline-none focus:ring-2 focus:ring-sesi-blue/20 cursor-pointer text-slate-600"
-                 />
-                 {selectedScheduleDate && (
-                   <button 
-                     onClick={() => setSelectedScheduleDate('')}
-                     className="text-[9px] md:text-[10px] font-black text-rose-500 hover:text-rose-600 hover:underline uppercase tracking-widest transition-all"
+
+          <div className="flex flex-wrap items-center gap-3">
+             {/* Filter toolbar for Solicitacoes */}
+             {activeTab === 'solicitacoes' && (
+               <div className="flex flex-wrap items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60">
+                 {/* Status pills */}
+                 <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-xs border border-slate-200/50">
+                   {[
+                     { id: 'pending_approved', label: 'Ativas' },
+                     { id: 'pending', label: 'Pendentes' },
+                     { id: 'prepared', label: 'Preparadas' },
+                     { id: 'approved', label: 'Aprovadas' },
+                     { id: 'all', label: 'Todas' }
+                   ].map(st => (
+                     <button
+                       key={st.id}
+                       onClick={() => setRequestStatusFilter(st.id as any)}
+                       className={cn(
+                         "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all",
+                         requestStatusFilter === st.id
+                           ? "bg-rose-500 text-white shadow-sm"
+                           : "text-slate-500 hover:text-slate-800"
+                       )}
+                     >
+                       {st.label}
+                     </button>
+                   ))}
+                 </div>
+
+                 {/* Date pills */}
+                 <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-xs border border-slate-200/50">
+                   {[
+                     { id: 'upcoming', label: 'Próximos' },
+                     { id: 'today', label: 'Hoje' },
+                     { id: 'next7', label: '7 Dias' },
+                     { id: 'all', label: 'Todas as Datas' },
+                     { id: 'past', label: 'Passadas' },
+                     { id: 'custom', label: 'Data...' }
+                   ].map(df => (
+                     <button
+                       key={df.id}
+                       onClick={() => setRequestDateFilterMode(df.id as any)}
+                       className={cn(
+                         "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all",
+                         requestDateFilterMode === df.id
+                           ? "bg-slate-900 text-white shadow-sm"
+                           : "text-slate-500 hover:text-slate-800"
+                       )}
+                     >
+                       {df.label}
+                     </button>
+                   ))}
+
+                   {requestDateFilterMode === 'custom' && (
+                     <input 
+                       type="date" 
+                       value={selectedScheduleDate}
+                       onChange={(e) => setSelectedScheduleDate(e.target.value)}
+                       className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-[9px] font-bold text-slate-700 outline-none"
+                     />
+                   )}
+                 </div>
+
+                 {(teacherRequests || []).length > 0 && (
+                   <button
+                     onClick={handleClearOldSchedules}
+                     className="px-3 py-1.5 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-xs flex items-center gap-1.5"
+                     title="Apagar solicitações de meses anteriores"
                    >
-                     Limpar
+                     <Trash2 size={12} />
+                     Limpar Antigos
                    </button>
                  )}
                </div>
              )}
-             {activeTab === 'agendamentos' && (schedules || []).length > 0 && (
-               <button
-                 onClick={handleClearOldSchedules}
-                 className="px-3 md:px-4 py-1.5 md:py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2"
-               >
-                 <Trash2 size={14} />
-                 Limpar Antigos
-               </button>
+
+             {/* Filter toolbar for Agendamentos */}
+             {activeTab === 'agendamentos' && (
+               <div className="flex flex-wrap items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60">
+                 <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-xs border border-slate-200/50">
+                   {[
+                     { id: 'upcoming', label: 'Próximos' },
+                     { id: 'today', label: 'Hoje' },
+                     { id: 'next7', label: '7 Dias' },
+                     { id: 'all', label: 'Todas as Datas' },
+                     { id: 'custom', label: 'Data...' }
+                   ].map(df => (
+                     <button
+                       key={df.id}
+                       onClick={() => setScheduleDateFilterMode(df.id as any)}
+                       className={cn(
+                         "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all",
+                         scheduleDateFilterMode === df.id
+                           ? "bg-amber-500 text-white shadow-sm"
+                           : "text-slate-500 hover:text-slate-800"
+                       )}
+                     >
+                       {df.label}
+                     </button>
+                   ))}
+
+                   {scheduleDateFilterMode === 'custom' && (
+                     <input 
+                       type="date" 
+                       value={selectedScheduleDate}
+                       onChange={(e) => setSelectedScheduleDate(e.target.value)}
+                       className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-[9px] font-bold text-slate-700 outline-none"
+                     />
+                   )}
+                 </div>
+
+                 {(schedules || []).length > 0 && (
+                   <button
+                     onClick={handleClearOldSchedules}
+                     className="px-3 py-1.5 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-xs flex items-center gap-1.5"
+                   >
+                     <Trash2 size={12} />
+                     Limpar Antigos
+                   </button>
+                 )}
+               </div>
              )}
+
              {activeTab === 'historico' && history.length > 0 && (
                <button
                  onClick={handleClearHistory}
@@ -852,8 +1174,9 @@ export function Loans() {
                  Limpar
                </button>
              )}
+
              <span className="text-[9px] md:text-xs font-black text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-3 md:px-4 py-1.5 md:py-2 rounded-full shadow-sm">
-               {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? (schedules || []).filter((s: any) => !selectedScheduleDate || s.scheduled_date === selectedScheduleDate).length : activeTab === 'solicitacoes' ? teacherRequests.filter(r => r.status === 'pending' && (!selectedScheduleDate || r.scheduled_date === selectedScheduleDate)).length : history.length} Registros
+               {activeTab === 'ativos' ? activeLoans.length : activeTab === 'agendamentos' ? filteredSchedules.length : activeTab === 'solicitacoes' ? filteredTeacherRequests.length : history.length} Registros
              </span>
           </div>
         </div>
@@ -974,16 +1297,7 @@ export function Loans() {
               );
             })}
 
-            {activeTab === 'agendamentos' && (schedules || [])
-              .filter((s: any) => !selectedScheduleDate || s.scheduled_date === selectedScheduleDate)
-              .filter((s: any) => {
-                if (!searchTerm) return true;
-                const prof = beneficiaries.find(b => b.id === s.professor_id);
-                const search = searchTerm.toLowerCase();
-                return (prof?.name || '').toLowerCase().includes(search) || 
-                       s.equipment_codes.some((c: string) => c.toLowerCase().includes(search));
-              })
-              .map((schedule) => {
+            {activeTab === 'agendamentos' && filteredSchedules.map((schedule) => {
               const prof = beneficiaries.find(b => b.id === schedule.professor_id);
               return (
                 <motion.div 
@@ -1002,7 +1316,7 @@ export function Loans() {
                       <div>
                         <h4 className="font-black text-slate-900 tracking-tight leading-none text-base md:text-lg">{prof?.name || 'Professor'}</h4>
                         <p className="text-[9px] md:text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                          {schedule.scheduled_date === new Date().toISOString().split('T')[0] ? 'Agendado para Hoje' : `Agendado para ${formatDate(schedule.scheduled_date)}`}
+                          {schedule.scheduled_date === new Date().toISOString().split('T')[0] ? 'Agendado para Hoje' : `Agendado para ${formatDate(schedule.scheduled_date)} (${getWeekdayName(schedule.scheduled_date)})`}
                         </p>
                       </div>
                     </div>
@@ -1053,16 +1367,7 @@ export function Loans() {
               );
             })}
 
-            {activeTab === 'solicitacoes' && (teacherRequests || [])
-              .filter(r => r.status === 'pending' && (!selectedScheduleDate || r.scheduled_date === selectedScheduleDate))
-              .filter(r => {
-                if (!searchTerm) return true;
-                const search = searchTerm.toLowerCase();
-                return (r.professor?.name || '').toLowerCase().includes(search) || 
-                       (r.destination || '').toLowerCase().includes(search) ||
-                       (r.observations || '').toLowerCase().includes(search);
-              })
-              .map((request) => (
+            {activeTab === 'solicitacoes' && filteredTeacherRequests.map((request) => (
               <motion.div 
                 key={request.id}
                 layout
@@ -1090,11 +1395,13 @@ export function Loans() {
                     "px-2 md:px-3 py-1 rounded-lg text-[9px] md:text-[10px] font-black uppercase",
                     request.status === 'pending' && 'bg-amber-100 text-amber-600',
                     request.status === 'approved' && 'bg-emerald-100 text-emerald-600',
-                    request.status === 'rejected' && 'bg-rose-100 text-rose-600'
+                    request.status === 'rejected' && 'bg-rose-100 text-rose-600',
+                    request.status === 'prepared' && 'bg-blue-100 text-blue-600'
                   )}>
                     {request.status === 'pending' && 'Pendente'}
                     {request.status === 'approved' && 'Aprovada'}
                     {request.status === 'rejected' && 'Rejeitada'}
+                    {request.status === 'prepared' && 'Preparada'}
                   </div>
                 </div>
                 
@@ -1102,7 +1409,7 @@ export function Loans() {
                   <div className="flex items-center justify-between text-[10px] md:text-xs">
                      <span className="font-bold text-slate-400 uppercase tracking-widest">Data/Hora</span>
                      <span className="font-black text-slate-900">
-                       {formatDate(request.scheduled_date)} • {request.start_time}
+                       {formatDate(request.scheduled_date)} ({getWeekdayName(request.scheduled_date)}) • {request.start_time}
                      </span>
                   </div>
                   {request.return_deadline && (
@@ -1124,9 +1431,9 @@ export function Loans() {
                     </div>
                   )}
                   <div className="space-y-2">
-                    <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens</span>
+                    <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens Solicitados</span>
                     <div className="flex flex-wrap gap-1.5 md:gap-2">
-                      {Object.keys(request.requested_items).map(type => {
+                      {Object.keys(request.requested_items || {}).map(type => {
                         const qty = (request.requested_items as any)[type];
                         if (qty === 0) return null;
                         return (
@@ -1140,19 +1447,59 @@ export function Loans() {
                   </div>
                 </div>
 
-                {request.status === 'pending' && (
+                {(request.status === 'pending' || request.status === 'approved') && (
                   <div className="mt-6 md:mt-8 flex gap-2 md:gap-3">
                     <button 
                       onClick={() => handleOpenPrepare(request)}
-                      className="flex-1 py-3 md:py-4 bg-sesi-blue text-white rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-sesi-blue/90 transition-all shadow-lg shadow-sesi-blue/20"
+                      className="flex-1 py-3 md:py-4 bg-sesi-blue text-white rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-sesi-blue/90 transition-all shadow-lg shadow-sesi-blue/20 flex items-center justify-center gap-2"
                     >
+                      <Laptop size={15} />
                       PREPARAR KIT
                     </button>
                     <button 
                       onClick={() => handleRejectRequest(request)}
-                      className="px-4 md:px-6 py-3 md:py-4 bg-slate-100 text-slate-400 rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-rose-50 hover:text-rose-500 transition-all"
+                      className="px-3 md:px-4 py-3 md:py-4 bg-amber-50 text-amber-600 rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-amber-100 transition-all"
+                      title="Rejeitar Solicitação"
                     >
-                      X
+                      Rejeitar
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteRequest(request.id)}
+                      className="size-11 md:size-12 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center shrink-0"
+                      title="Excluir Permanentemente"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
+
+                {request.status === 'prepared' && (
+                  <div className="mt-6 md:mt-8 flex gap-2 md:gap-3">
+                    <button 
+                      onClick={() => setActiveTab('agendamentos')}
+                      className="flex-1 py-3 md:py-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 size={15} className="text-emerald-500" />
+                      KIT PREPARADO • VER NA AGENDA
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteRequest(request.id)}
+                      className="size-11 md:size-12 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center shrink-0"
+                      title="Excluir Solicitação"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
+
+                {request.status === 'rejected' && (
+                  <div className="mt-6 md:mt-8 flex gap-2 md:gap-3">
+                    <button 
+                      onClick={() => handleDeleteRequest(request.id)}
+                      className="w-full py-3 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2"
+                    >
+                      <Trash2 size={14} />
+                      Excluir Solicitação Rejeitada
                     </button>
                   </div>
                 )}
@@ -1583,7 +1930,7 @@ export function Loans() {
                   <div>
                     <h2 className="text-lg md:text-3xl font-black text-slate-900 tracking-tight">Preparar Kit</h2>
                     <p className="text-[9px] md:text-sm font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                      {selectedRequest.professor?.name} • {selectedRequest.start_time?.slice(0, 5)}
+                      {selectedRequest.professor?.name} • Data: {formatDate(selectedRequest.scheduled_date)} ({getWeekdayName(selectedRequest.scheduled_date)}) às {selectedRequest.start_time?.slice(0, 5)}
                     </p>
                   </div>
                 </div>
@@ -1599,22 +1946,33 @@ export function Loans() {
               {/* Left side: Item Selection */}
               <div className="w-full lg:w-2/3 p-4 md:p-10 lg:p-12 border-b lg:border-r lg:border-b-0 border-slate-100">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                  <div className="flex flex-wrap gap-2 md:gap-4">
-                    {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => setActivePreparationType(type)}
-                        className={cn(
-                          "px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all",
-                          activePreparationType === type 
-                            ? "bg-sesi-blue text-white shadow-lg shadow-sesi-blue/20" 
-                            : "bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 border border-slate-100"
-                        )}
-                      >
-                        {type}s ({(selectedRequest.requested_items as any)[type]})
-                      </button>
-                    ))}
-                  </div>
+                  {(() => {
+                    const req = selectedRequest.requested_items || {};
+                    const types = Object.keys(req).filter(k => req[k] > 0);
+                    const tabList = types.length === 0 ? ['notebook'] : types.includes('kit') ? Array.from(new Set(['notebook', ...types])) : types;
+                    return (
+                      <div className="flex flex-wrap gap-2 md:gap-4">
+                        {tabList.map((type) => {
+                          const actualType = type === 'kit' ? 'notebook' : type;
+                          const qty = (req as any)[type] || 0;
+                          return (
+                            <button
+                              key={type}
+                              onClick={() => setActivePreparationType(actualType)}
+                              className={cn(
+                                "px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all",
+                                activePreparationType === actualType 
+                                  ? "bg-sesi-blue text-white shadow-lg shadow-sesi-blue/20" 
+                                  : "bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 border border-slate-100"
+                              )}
+                            >
+                              {type === 'kit' ? 'Kits (Notebooks)' : `${type}s`} ({qty})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                   <div className="w-full flex flex-col md:flex-row md:items-center gap-4">
                     <div className="flex-1 relative">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
@@ -1628,7 +1986,10 @@ export function Loans() {
                     </div>
                     <button
                       onClick={() => {
-                        const requestedQty = (selectedRequest.requested_items as any)[activePreparationType] || 0;
+                        const req = selectedRequest.requested_items || {};
+                        const requestedQty = (req as any)[activePreparationType] 
+                          || (activePreparationType === 'notebook' ? (req as any)['kit'] : 0)
+                          || 0;
                         const currentlySelectedCount = preparationItems.filter(code => {
                           const item = notebooks.find(n => n.code === code);
                           return item?.type === activePreparationType;
@@ -1638,6 +1999,7 @@ export function Loans() {
                         
                         if (qtyToSelect <= 0) return;
 
+                        // 1. Pick available first
                         const available = notebooks
                           .filter(n => n.type === activePreparationType && n.status === 'available' && !preparationItems.includes(n.code))
                           .filter(n => {
@@ -1645,10 +2007,20 @@ export function Loans() {
                             const search = prepareSearchTerm.toLowerCase();
                             return n.code.toLowerCase().includes(search) || (n.laboratory && n.laboratory.toLowerCase().includes(search));
                           })
-                          .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true}))
-                          .slice(0, qtyToSelect);
+                          .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true}));
+
+                        // 2. Pick loaned next for future reservations
+                        const loaned = notebooks
+                          .filter(n => n.type === activePreparationType && n.status === 'loaned' && !preparationItems.includes(n.code))
+                          .filter(n => {
+                            if (!prepareSearchTerm) return true;
+                            const search = prepareSearchTerm.toLowerCase();
+                            return n.code.toLowerCase().includes(search) || (n.laboratory && n.laboratory.toLowerCase().includes(search));
+                          })
+                          .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true}));
                         
-                        setPreparationItems(prev => Array.from(new Set([...prev, ...available.map(n => n.code)])));
+                        const toAdd = [...available, ...loaned].slice(0, qtyToSelect);
+                        setPreparationItems(prev => Array.from(new Set([...prev, ...toAdd.map(n => n.code)])));
                       }}
                       className="w-full md:w-auto px-6 py-3 bg-sesi-orange text-white rounded-xl md:rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-sesi-orange/20 hover:scale-105 transition-all text-center"
                     >
@@ -1659,60 +2031,85 @@ export function Loans() {
 
                 <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-4 gap-2 md:gap-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
                   {notebooks
-                    .filter(n => n.type === activePreparationType && n.status === 'available')
+                    .filter(n => n.type === activePreparationType && n.status !== 'maintenance')
                     .filter(n => {
                       if (!prepareSearchTerm) return true;
                       const search = prepareSearchTerm.toLowerCase();
                       return n.code.toLowerCase().includes(search) || (n.laboratory && n.laboratory.toLowerCase().includes(search));
                     })
                     .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}))
-                    .map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          if (rangeStart) {
-                            const availableForCurrentType = notebooks
-                              .filter(n => n.type === activePreparationType && n.status === 'available')
-                              .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}));
-                            const allCodes = availableForCurrentType.map(n => n.code);
-                            const startIndex = allCodes.indexOf(rangeStart);
-                            const endIndex = allCodes.indexOf(item.code);
-                            const start = Math.min(startIndex, endIndex);
-                            const end = Math.max(startIndex, endIndex);
-                            const rangeCodes = allCodes.slice(start, end + 1);
-                            setPreparationItems(prev => Array.from(new Set([...prev, ...rangeCodes])));
-                            setRangeStart(null);
-                          } else {
-                            if (preparationItems.includes(item.code)) {
-                              setPreparationItems(prev => prev.filter(c => c !== item.code));
+                    .map((item) => {
+                      const isSelected = preparationItems.includes(item.code);
+                      const isRangeStart = rangeStart === item.code;
+                      const isLoanedToday = item.status === 'loaned';
+
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            if (rangeStart) {
+                              const candidateList = notebooks
+                                .filter(n => n.type === activePreparationType && n.status !== 'maintenance')
+                                .sort((a,b) => a.code.localeCompare(b.code, undefined, {numeric: true, sensitivity: 'base'}));
+                              const allCodes = candidateList.map(n => n.code);
+                              const startIndex = allCodes.indexOf(rangeStart);
+                              const endIndex = allCodes.indexOf(item.code);
+                              if (startIndex !== -1 && endIndex !== -1) {
+                                const start = Math.min(startIndex, endIndex);
+                                const end = Math.max(startIndex, endIndex);
+                                const rangeCodes = allCodes.slice(start, end + 1);
+                                setPreparationItems(prev => Array.from(new Set([...prev, ...rangeCodes])));
+                              }
+                              setRangeStart(null);
                             } else {
-                              setPreparationItems(prev => [...prev, item.code]);
+                              if (isSelected) {
+                                setPreparationItems(prev => prev.filter(c => c !== item.code));
+                              } else {
+                                setPreparationItems(prev => [...prev, item.code]);
+                              }
                             }
-                          }
-                        }}
-                        onDoubleClick={() => setRangeStart(item.code)}
-                        className={cn(
-                          "group p-3 rounded-2xl md:rounded-3xl border-2 transition-all text-left",
-                          preparationItems.includes(item.code)
-                            ? "bg-sesi-blue border-sesi-blue text-white shadow-xl shadow-sesi-blue/20"
-                            : rangeStart === item.code
-                              ? "border-sesi-blue ring-4 ring-sesi-blue/10 scale-105 z-10"
-                              : "bg-white border-slate-100 hover:border-sesi-blue/50 text-slate-600"
-                        )}
-                      >
-                        <div className={cn(
-                          "size-8 rounded-xl mb-2 flex items-center justify-center transition-colors",
-                          preparationItems.includes(item.code) ? "bg-white/20" : "bg-slate-50 group-hover:bg-sesi-blue/10"
-                        )}>
-                          {item.type === 'notebook' && <Laptop size={14} />}
-                          {item.type === 'mesa' && <Tablet size={14} />}
-                          {item.type === 'mouse' && <Mouse size={14} />}
-                          {item.type === 'charger' && <Zap size={14} />}
-                          {item.type === 'headphones' && <Headphones size={14} />}
-                        </div>
-                        <div className="font-black text-[9px] md:text-xs tracking-tight">{item.code}</div>
-                      </button>
-                    ))}
+                          }}
+                          onDoubleClick={() => setRangeStart(item.code)}
+                          className={cn(
+                            "group p-3 rounded-2xl md:rounded-3xl border-2 transition-all text-left relative",
+                            isSelected
+                              ? "bg-sesi-blue border-sesi-blue text-white shadow-xl shadow-sesi-blue/20"
+                              : isRangeStart
+                                ? "border-sesi-blue ring-4 ring-sesi-blue/10 scale-105 z-10 bg-blue-50/50"
+                                : "bg-white border-slate-100 hover:border-sesi-blue/50 text-slate-600"
+                          )}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className={cn(
+                              "size-8 rounded-xl flex items-center justify-center transition-colors",
+                              isSelected ? "bg-white/20" : "bg-slate-50 group-hover:bg-sesi-blue/10"
+                            )}>
+                              {item.type === 'notebook' && <Laptop size={14} />}
+                              {item.type === 'mesa' && <Tablet size={14} />}
+                              {item.type === 'mouse' && <Mouse size={14} />}
+                              {item.type === 'charger' && <Zap size={14} />}
+                              {item.type === 'headphones' && <Headphones size={14} />}
+                            </div>
+                            <span className={cn(
+                              "text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider",
+                              isSelected 
+                                ? "bg-white/20 text-white" 
+                                : isLoanedToday 
+                                  ? "bg-amber-50 text-amber-600 border border-amber-200" 
+                                  : "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                            )}>
+                              {isLoanedToday ? "Em uso" : "Livre"}
+                            </span>
+                          </div>
+                          <div className="font-black text-[9px] md:text-xs tracking-tight font-mono">{item.code}</div>
+                          {item.laboratory && (
+                            <div className={cn("text-[8px] font-bold truncate mt-0.5", isSelected ? "text-blue-100" : "text-slate-400")}>
+                              {item.laboratory}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
 
@@ -1724,15 +2121,16 @@ export function Loans() {
                   <div className="space-y-4 md:space-y-6">
                     {Object.keys(selectedRequest.requested_items).filter(k => (selectedRequest.requested_items as any)[k] > 0).map((type) => {
                        const requested = (selectedRequest.requested_items as any)[type];
+                       const actualType = type === 'kit' ? 'notebook' : type;
                        const selected = preparationItems.filter(code => {
                          const item = notebooks.find(n => n.code === code);
-                         return item?.type === type;
+                         return item?.type === actualType;
                        }).length;
                        
                        return (
                          <div key={type} className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-100">
                            <div className="flex items-center justify-between mb-2 text-[10px] font-black uppercase tracking-widest">
-                             <span className="text-slate-400">{type}s</span>
+                             <span className="text-slate-400">{type === 'kit' ? 'Kits (Notebooks)' : `${type}s`}</span>
                              <span className={cn(selected >= requested ? "text-emerald-500" : "text-amber-500")}>
                                {selected}/{requested}
                              </span>
@@ -1766,7 +2164,7 @@ export function Loans() {
                   disabled={preparationItems.length === 0}
                   className="w-full h-14 md:h-20 mt-4 lg:mt-0 bg-emerald-500 text-white rounded-xl md:rounded-[2rem] font-black text-base md:text-lg shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center gap-3"
                 >
-                  FINALIZAR
+                  FINALIZAR PREPARAÇÃO
                   <Check size={22} />
                 </button>
               </div>
@@ -1776,6 +2174,7 @@ export function Loans() {
       )}
     </AnimatePresence>
 
+    {/* Agendar Reserva Modal */}
     <AnimatePresence>
       {isScheduleModalOpen && (
       <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-0 md:p-4 animate-in fade-in duration-300">
@@ -1789,16 +2188,17 @@ export function Loans() {
                 <h3 className="text-lg md:text-2xl font-black text-slate-900 leading-tight">
                   Agendar Reserva
                 </h3>
-                <p className="text-[9px] md:text-sm text-slate-500 font-medium">Reserve itens para o futuro.</p>
+                <p className="text-[9px] md:text-sm text-slate-500 font-medium">Reserve itens com opção de replicação semanal.</p>
               </div>
             </div>
             <button 
               onClick={() => {
                 setIsScheduleModalOpen(false);
-              setSelectedItems([]);
-              setSelectedBeneficiaryId('');
-              setReturnDeadline('');
-              setStartTime('');
+                setSelectedItems([]);
+                setSelectedBeneficiaryId('');
+                setReturnDeadline('');
+                setStartTime('');
+                setIsScheduleReplicating(false);
               }} 
               className="size-10 md:size-12 bg-slate-50 text-slate-400 rounded-xl md:rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all border border-slate-100"
             >
@@ -1810,6 +2210,27 @@ export function Loans() {
              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
               <div className="lg:col-span-7 space-y-5 md:space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  {/* Date Input */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <Calendar size={14} className="text-amber-500" />
+                      Data da Reserva
+                    </label>
+                    <input 
+                      type="date"
+                      value={manualScheduleDate}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setManualScheduleDate(e.target.value)}
+                      className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-sm md:text-base text-slate-700"
+                    />
+                    {manualScheduleDate && (
+                      <p className="text-[10px] font-bold text-amber-600 capitalize">
+                        {getWeekdayName(manualScheduleDate)}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Professor Select */}
                   <div className="space-y-3">
                     <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                       <User size={14} className="text-amber-500" />
@@ -1827,133 +2248,265 @@ export function Loans() {
                             <option key={b.id} value={b.id}>{b.name} ({b.type === 'professor' ? '' : ` - ${b.type}`})</option>
                           ))}
                       </select>
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <Clock size={14} className="text-amber-500" />
-                        Horário de Retirada
-                      </label>
-                      <input 
-                        type="time"
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                        className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700"
-                      />
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <Clock size={14} className="text-amber-500" />
-                        Prazo de Devolução (Opcional)
-                      </label>
-                      <input 
-                        type="time"
-                        value={returnDeadline}
-                        onChange={(e) => setReturnDeadline(e.target.value)}
-                        className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700"
-                      />
-                    </div>
                   </div>
 
-                  {/* Laboratory Quick Selection for Scheduling */}
-                  <div className="space-y-4">
-                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <ArrowDownCircle size={14} className="text-amber-500" />
-                        Reservar Laboratório Inteiro
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {Array.from(new Set(notebooks.map(n => n.laboratory).filter(Boolean))).sort().map(lab => (
-                          <button
-                            key={lab}
-                            onClick={() => {
-                              const labItems = notebooks.filter(n => n.laboratory === lab && n.type === 'notebook' && n.status === 'available');
-                              const codes = labItems.map(n => n.code);
-                              setSelectedItems(prev => Array.from(new Set([...prev, ...codes])));
-                              setSuccess(`${lab} selecionado para reserva.`);
-                            }}
-                            className="px-4 py-2 bg-slate-50 hover:bg-amber-50 hover:text-amber-600 border border-slate-100 rounded-xl text-[10px] font-black transition-all uppercase"
-                          >
-                            SELECIONAR {lab}
-                          </button>
-                        ))}
+                  {/* Start Time */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <Clock size={14} className="text-amber-500" />
+                      Horário de Retirada
+                    </label>
+                    <input 
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700"
+                    />
+                  </div>
+
+                  {/* Return Deadline */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <Clock size={14} className="text-amber-500" />
+                      Prazo de Devolução (Opcional)
+                    </label>
+                    <input 
+                      type="time"
+                      value={returnDeadline}
+                      onChange={(e) => setReturnDeadline(e.target.value)}
+                      className="w-full h-14 md:h-16 px-4 md:px-6 bg-slate-50 border-slate-100 rounded-xl md:rounded-[1.25rem] focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold text-slate-700"
+                    />
+                  </div>
+                </div>
+
+                {/* Replication Module */}
+                <div className="p-4 md:p-6 bg-slate-50 border border-slate-100 rounded-2xl md:rounded-[1.5rem] space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "size-9 rounded-xl flex items-center justify-center transition-all",
+                        isScheduleReplicating ? "bg-amber-500 text-white shadow-md shadow-amber-500/30" : "bg-white text-slate-400 border border-slate-200"
+                      )}>
+                        <Repeat size={18} />
                       </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-800">Replicar Reserva Semanalmente?</p>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          {manualScheduleDate ? `Toda ${getWeekdayName(manualScheduleDate)}` : 'Mesmo dia da semana'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsScheduleReplicating(!isScheduleReplicating)}
+                      className={cn(
+                        "relative w-12 h-7 rounded-full transition-colors",
+                        isScheduleReplicating ? "bg-amber-500" : "bg-slate-200"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-1 size-5 rounded-full bg-white transition-transform shadow-md",
+                        isScheduleReplicating ? "translate-x-6" : "translate-x-1"
+                      )} />
+                    </button>
                   </div>
 
-                  <div className="space-y-4">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Notebooks Disponíveis para Reserva</h3>
-                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-                      {notebooks.filter(n => n.type === 'notebook' && n.status === 'available').map(n => (
+                  {isScheduleReplicating && (
+                    <div className="pt-3 border-t border-slate-200/60 space-y-3">
+                      <div className="flex gap-2">
                         <button
-                          key={n.code}
-                          onClick={() => {
-                            if (selectedItems.includes(n.code)) {
-                              setSelectedItems(prev => prev.filter(c => c !== n.code));
-                            } else {
-                              setSelectedItems(prev => [...prev, n.code]);
-                            }
-                          }}
+                          type="button"
+                          onClick={() => setScheduleReplicationMode('month')}
                           className={cn(
-                            "group relative h-12 rounded-xl border-2 transition-all flex items-center justify-center font-black text-[10px]",
-                            selectedItems.includes(n.code)
-                              ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20"
-                              : "bg-white border-slate-100 text-slate-400 hover:border-amber-200"
+                            "flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
+                            scheduleReplicationMode === 'month'
+                              ? "bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/20"
+                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                           )}
                         >
-                          {n.code.replace('NB', '')}
+                          Todas de {getMonthName(manualScheduleDate)}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleReplicationMode('4weeks')}
+                          className={cn(
+                            "flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
+                            scheduleReplicationMode === '4weeks'
+                              ? "bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/20"
+                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                          )}
+                        >
+                          Próximas 4 semanas
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                          Datas que serão agendadas ({scheduleReplicationDates.length}):
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {scheduleReplicationDates.map(dateStr => (
+                            <span 
+                              key={dateStr}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-amber-200 text-amber-700 font-mono font-bold text-[10px] rounded-lg shadow-sm"
+                            >
+                              <Calendar size={11} className="text-amber-500" />
+                              {formatDate(dateStr)} ({getWeekdayName(dateStr).slice(0, 3)})
+                              {scheduleReplicationDates.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setScheduleReplicationDates(prev => prev.filter(d => d !== dateStr))}
+                                  className="text-amber-400 hover:text-rose-500 ml-0.5"
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Laboratory Quick Selection for Scheduling */}
+                <div className="space-y-4">
+                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <ArrowDownCircle size={14} className="text-amber-500" />
+                      Reservar Laboratório Inteiro
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from(new Set(notebooks.map(n => n.laboratory).filter(Boolean))).sort().map(lab => (
+                        <button
+                          key={lab}
+                          type="button"
+                          onClick={() => {
+                            const labItems = notebooks.filter(n => n.laboratory === lab && n.type === 'notebook' && n.status !== 'maintenance');
+                            const codes = labItems.map(n => n.code);
+                            setSelectedItems(prev => Array.from(new Set([...prev, ...codes])));
+                            setSuccess(`${lab} selecionado para reserva.`);
+                          }}
+                          className="px-4 py-2 bg-slate-50 hover:bg-amber-50 hover:text-amber-600 border border-slate-100 rounded-xl text-[10px] font-black transition-all uppercase"
+                        >
+                          SELECIONAR {lab}
                         </button>
                       ))}
                     </div>
-                  </div>
                 </div>
 
-                {/* Right Column: Summary */}
-                <div className="lg:col-span-5 bg-slate-50 rounded-2xl md:rounded-[2.5rem] border border-slate-100 flex flex-col shadow-inner overflow-hidden">
-                  <div className="p-4 md:p-8 flex-1">
-                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Resumo do Agendamento</h4>
-                    <div className="space-y-4">
-                      {selectedItems.map(code => {
-                        const item = notebooks.find(n => n.code === code);
+                {/* Notebooks Grid for Scheduling */}
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Notebooks Selecionáveis para Reserva</h3>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
+                    {notebooks
+                      .filter(n => n.type === 'notebook' && n.status !== 'maintenance')
+                      .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }))
+                      .map(n => {
+                        const isSelected = selectedItems.includes(n.code);
+                        const isLoanedToday = n.status === 'loaned';
+
                         return (
-                          <div key={code} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
-                            <div className="flex items-center gap-3">
-                              <Laptop size={16} className="text-amber-500" />
-                              <span className="font-black text-slate-700 font-mono text-xs">{code}</span>
-                            </div>
-                            <button 
-                              onClick={() => setSelectedItems(prev => prev.filter(c => c !== code))}
-                              className="text-slate-300 hover:text-rose-500 transition-colors"
-                            >
-                              <X size={16} />
-                            </button>
-                          </div>
+                          <button
+                            key={n.code}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedItems(prev => prev.filter(c => c !== n.code));
+                              } else {
+                                setSelectedItems(prev => [...prev, n.code]);
+                              }
+                            }}
+                            className={cn(
+                              "group relative h-14 rounded-xl border-2 transition-all flex flex-col items-center justify-center p-1",
+                              isSelected
+                                ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20"
+                                : "bg-white border-slate-100 text-slate-600 hover:border-amber-200"
+                            )}
+                          >
+                            <span className="font-black text-[10px] font-mono">{n.code.replace('NB', '')}</span>
+                            <span className={cn(
+                              "text-[7px] font-black uppercase mt-0.5",
+                              isSelected 
+                                ? "text-amber-100" 
+                                : isLoanedToday 
+                                  ? "text-amber-600" 
+                                  : "text-emerald-600"
+                            )}>
+                              {isLoanedToday ? "Uso" : "Livre"}
+                            </span>
+                          </button>
                         );
                       })}
-                      {selectedItems.length === 0 && (
-                        <div className="py-20 text-center text-slate-300">
-                           <Calendar size={48} className="mx-auto mb-4 opacity-10" />
-                           <p className="text-[10px] font-black uppercase tracking-widest">Nenhum item selecionado</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="p-4 md:p-8 bg-slate-900 text-white">
-                    <button 
-                      onClick={handleConfirmSchedule}
-                      disabled={!selectedBeneficiaryId || selectedItems.length === 0}
-                      className="w-full py-5 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-400 transition-all shadow-xl shadow-amber-500/20 disabled:opacity-20 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-                    >
-                      <Check size={20} />
-                      SALVAR AGENDAMENTO
-                    </button>
                   </div>
                 </div>
-               </div>
-            </div>
+              </div>
+
+              {/* Right Column: Summary */}
+              <div className="lg:col-span-5 bg-slate-50 rounded-2xl md:rounded-[2.5rem] border border-slate-100 flex flex-col shadow-inner overflow-hidden">
+                <div className="p-4 md:p-8 flex-1 overflow-y-auto">
+                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Resumo do Agendamento</h4>
+                  
+                  {isScheduleReplicating && scheduleReplicationDates.length > 1 && (
+                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                      <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                        <Repeat size={12} />
+                        Replicação Ativa ({scheduleReplicationDates.length} datas)
+                      </p>
+                      <p className="text-xs font-bold text-amber-900">
+                        {selectedItems.length} itens × {scheduleReplicationDates.length} semanas = <span className="underline">{selectedItems.length * scheduleReplicationDates.length} agendamentos no total</span>
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    {selectedItems.map(code => {
+                      const item = notebooks.find(n => n.code === code);
+                      return (
+                        <div key={code} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <Laptop size={16} className="text-amber-500" />
+                            <span className="font-black text-slate-700 font-mono text-xs">{code}</span>
+                            {item?.laboratory && (
+                              <span className="text-[9px] font-bold text-slate-400">({item.laboratory})</span>
+                            )}
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => setSelectedItems(prev => prev.filter(c => c !== code))}
+                            className="text-slate-300 hover:text-rose-500 transition-colors"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {selectedItems.length === 0 && (
+                      <div className="py-20 text-center text-slate-300">
+                         <Calendar size={48} className="mx-auto mb-4 opacity-10" />
+                         <p className="text-[10px] font-black uppercase tracking-widest">Nenhum item selecionado</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="p-4 md:p-8 bg-slate-900 text-white">
+                  <button 
+                    onClick={handleConfirmSchedule}
+                    disabled={!selectedBeneficiaryId || selectedItems.length === 0}
+                    className="w-full py-5 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-400 transition-all shadow-xl shadow-amber-500/20 disabled:opacity-20 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                  >
+                    <Check size={20} />
+                    {isScheduleReplicating && scheduleReplicationDates.length > 1
+                      ? `SALVAR ${scheduleReplicationDates.length} AGENDAMENTOS`
+                      : 'SALVAR AGENDAMENTO'}
+                  </button>
+                </div>
+              </div>
+             </div>
           </div>
         </div>
-        )}
-      </AnimatePresence>
+      </div>
+      )}
+    </AnimatePresence>
     </motion.div>
   );
 }

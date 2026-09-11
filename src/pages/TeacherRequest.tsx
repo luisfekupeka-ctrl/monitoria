@@ -26,10 +26,12 @@ import {
   ChevronLeft,
   Search,
   Filter,
-  Tablet
+  Tablet,
+  Repeat,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn, formatDate, formatTime } from '../lib/utils';
+import { cn, formatDate, formatTime, getLocalDateString } from '../lib/utils';
 
 interface EquipmentItem {
   id: string;
@@ -50,9 +52,54 @@ const EQUIPMENT_TYPES: EquipmentItem[] = [
 function getShiftFromTime(time: string): 'morning' | 'afternoon' | null {
   if (!time) return null;
   const [h] = time.split(':').map(Number);
-  if (h >= 7 && h < 12) return 'morning';
-  if (h >= 13 && h < 18) return 'afternoon';
-  return null;
+  if (h >= 6 && h < 12) return 'morning';
+  if (h >= 12 && h < 18) return 'afternoon';
+  if (h >= 18) return 'afternoon';
+  return 'morning';
+}
+
+function getWeekdayName(dateStr: string) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('pt-BR', { weekday: 'long' });
+}
+
+function getMonthName(dateStr: string) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('pt-BR', { month: 'long' });
+}
+
+function getRecurringDates(baseDateStr: string, mode: 'month' | '4weeks'): string[] {
+  if (!baseDateStr) return [];
+  const [y, m, d] = baseDateStr.split('-').map(Number);
+  const baseDate = new Date(y, m - 1, d);
+  const targetMonth = baseDate.getMonth();
+
+  const results: string[] = [baseDateStr];
+
+  if (mode === 'month') {
+    let curr = new Date(y, m - 1, d + 7);
+    while (curr.getMonth() === targetMonth) {
+      const yStr = curr.getFullYear();
+      const mStr = String(curr.getMonth() + 1).padStart(2, '0');
+      const dStr = String(curr.getDate()).padStart(2, '0');
+      results.push(`${yStr}-${mStr}-${dStr}`);
+      curr.setDate(curr.getDate() + 7);
+    }
+  } else if (mode === '4weeks') {
+    for (let i = 1; i <= 4; i++) {
+      const curr = new Date(y, m - 1, d + (i * 7));
+      const yStr = curr.getFullYear();
+      const mStr = String(curr.getMonth() + 1).padStart(2, '0');
+      const dStr = String(curr.getDate()).padStart(2, '0');
+      results.push(`${yStr}-${mStr}-${dStr}`);
+    }
+  }
+
+  return results;
 }
 
 // Inline availability bar for each equipment row
@@ -157,13 +204,29 @@ export default function TeacherRequest() {
   const [totalStock, setTotalStock] = useState<Record<string, number>>({});
   const [dayRequests, setDayRequests] = useState<any[]>([]);
   const [destination, setDestination] = useState('');
-  const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split('T')[0]);
+  const [scheduledDate, setScheduledDate] = useState(getLocalDateString());
   const [observations, setObservations] = useState('');
   const [startTime, setStartTime] = useState('');
   const [returnDeadline, setReturnDeadline] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Replication states
+  const [isReplicating, setIsReplicating] = useState(false);
+  const [replicationMode, setReplicationMode] = useState<'month' | '4weeks'>('month');
+  const [selectedReplicationDates, setSelectedReplicationDates] = useState<string[]>([]);
+  const [createdDatesSummary, setCreatedDatesSummary] = useState<string[]>([]);
+
+  // Sync replication dates when base date, mode, or replication toggle changes
+  useEffect(() => {
+    if (isReplicating) {
+      const dates = getRecurringDates(scheduledDate, replicationMode);
+      setSelectedReplicationDates(dates);
+    } else {
+      setSelectedReplicationDates([scheduledDate]);
+    }
+  }, [scheduledDate, replicationMode, isReplicating]);
   
   const { token } = useParams<{ token: string }>();
   const [isCheckingToken, setIsCheckingToken] = useState(true);
@@ -235,7 +298,7 @@ export default function TeacherRequest() {
   };
 
   const filteredMyRequests = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     if (managementFilter === 'all') return myRequests;
     if (managementFilter === 'future') return myRequests.filter(r => r.scheduled_date >= todayStr);
     return myRequests.filter(r => r.scheduled_date < todayStr);
@@ -249,6 +312,7 @@ export default function TeacherRequest() {
     setReturnDeadline(req.return_deadline || '');
     setDestination(req.destination);
     setObservations(req.observations || '');
+    setIsReplicating(false);
     setView('form');
   };
 
@@ -362,10 +426,23 @@ export default function TeacherRequest() {
       return; 
     }
 
-    // 12h Restriction Check
-    const scheduledDateTime = new Date(`${scheduledDate}T${startTime}`);
+    const targetDates = (isReplicating && !editingRequestId && selectedReplicationDates.length > 0)
+      ? selectedReplicationDates
+      : [scheduledDate];
+
+    // 12h Restriction Check for the earliest date
+    const earliestDate = [...targetDates].sort()[0];
+    const [y, m, d] = earliestDate.split('-').map(Number);
+    const [h, min] = (startTime || '00:00').split(':').map(Number);
+    const scheduledDateTime = new Date(y, m - 1, d, h || 0, min || 0);
     const now = new Date();
     const diffInHours = (scheduledDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (diffInHours < 0) {
+      setError('O horário selecionado já passou. Escolha uma data e horário futuros.');
+      setIsLoading(false);
+      return;
+    }
 
     if (diffInHours < 12) {
       setError('Agendamentos com menos de 12 hrs de antecedência precisam ser feitos na monitoria pois precisa ser verificado a disponibilidade');
@@ -373,29 +450,35 @@ export default function TeacherRequest() {
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-    const payload: any = {
-      professor_id: selectedProfessorId,
-      requested_items: requestedItems,
-      scheduled_date: scheduledDate,
-      start_time: startTime,
-      return_deadline: returnDeadline || null,
-      destination: destination,
-      observations: observations || null
-    };
-
-    if (!editingRequestId) {
-      payload.status = 'pending';
-    }
-
     try {
-      const query = editingRequestId 
-        ? supabase.from('teacher_requests').update(payload).eq('id', editingRequestId) 
-        : supabase.from('teacher_requests').insert(payload);
-      
-      const { error: dbError } = await query;
-      if (dbError) throw dbError;
+      if (editingRequestId) {
+        const payload: any = {
+          professor_id: selectedProfessorId,
+          requested_items: requestedItems,
+          scheduled_date: scheduledDate,
+          start_time: startTime,
+          return_deadline: returnDeadline || null,
+          destination: destination,
+          observations: observations || null
+        };
+        const { error: dbError } = await supabase.from('teacher_requests').update(payload).eq('id', editingRequestId);
+        if (dbError) throw dbError;
+        setCreatedDatesSummary([scheduledDate]);
+      } else {
+        const payloads = targetDates.map(dateStr => ({
+          professor_id: selectedProfessorId,
+          requested_items: requestedItems,
+          scheduled_date: dateStr,
+          start_time: startTime,
+          return_deadline: returnDeadline || null,
+          destination: destination,
+          observations: observations ? (targetDates.length > 1 ? `${observations} (Recorrente)` : observations) : null,
+          status: 'pending'
+        }));
+        const { error: dbError } = await supabase.from('teacher_requests').insert(payloads);
+        if (dbError) throw dbError;
+        setCreatedDatesSummary(targetDates);
+      }
 
       // Update professor profile if needed
       const prof = professors.find(p => p.id === selectedProfessorId);
@@ -427,7 +510,51 @@ export default function TeacherRequest() {
   }
 
   if (isSuccess) {
-    return <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-white text-center"><motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-slate-800 rounded-[2.5rem] p-10 shadow-2xl border border-slate-700"><div className="size-24 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-500"><CheckCircle2 size={48} /></div><h2 className="text-3xl font-black mb-4">Sucesso!</h2><button onClick={() => window.location.reload()} className="w-full h-16 bg-white text-slate-900 rounded-2xl font-black text-lg shadow-lg">Voltar para o Início</button></motion.div></div>;
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-white text-center">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-slate-800 rounded-[2.5rem] p-8 md:p-10 shadow-2xl border border-slate-700">
+          <div className="size-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500">
+            <CheckCircle2 size={40} />
+          </div>
+          <h2 className="text-2xl md:text-3xl font-black mb-2">Reserva Confirmada!</h2>
+          <p className="text-xs text-slate-400 font-bold mb-6">
+            {createdDatesSummary.length > 1
+              ? `${createdDatesSummary.length} solicitações foram enviadas com sucesso para a monitoria.`
+              : 'Sua solicitação foi enviada com sucesso para a monitoria.'}
+          </p>
+
+          {createdDatesSummary.length > 0 && (
+            <div className="bg-slate-900/70 rounded-2xl p-4 mb-6 border border-white/5 max-h-48 overflow-y-auto space-y-2 text-left">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Datas Reservadas:</span>
+              {createdDatesSummary.map((dStr) => (
+                <div key={dStr} className="flex items-center justify-between text-xs font-bold text-slate-300 py-1 border-b border-white/5 last:border-0">
+                  <span className="capitalize">{formatDate(dStr)} ({getWeekdayName(dStr)})</span>
+                  <span className="text-emerald-400 text-[10px] font-black">{startTime}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <button 
+              onClick={() => { 
+                setIsSuccess(false); 
+                setView('management'); 
+              }} 
+              className="w-full h-14 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg transition-all"
+            >
+              Ver Meus Agendamentos
+            </button>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="w-full h-12 bg-white/10 hover:bg-white/20 text-slate-300 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all"
+            >
+              Fazer Outra Reserva
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
   }
 
   const currentShift = getShiftFromTime(startTime);
@@ -567,7 +694,7 @@ export default function TeacherRequest() {
                     {filteredMyRequests.map((req: any) => {
                       const dt = new Date(req.scheduled_date + 'T12:00:00');
                       const items = Object.entries(req.requested_items || {}).filter(([_, q]) => (Number(q)) > 0);
-                      const isPast = new Date(req.scheduled_date) < new Date(new Date().toISOString().split('T')[0]);
+                      const isPast = new Date(req.scheduled_date) < new Date(getLocalDateString());
                       return (
                         <div key={req.id} className={cn("p-5 rounded-3xl bg-slate-800 border-2 transition-all", isPast ? "opacity-60 border-transparent bg-slate-900/50" : "border-slate-700 shadow-lg")}>
                           <div className="flex justify-between items-start mb-4">
@@ -617,10 +744,145 @@ export default function TeacherRequest() {
                 </div>
 
                 <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Data</label><input type="date" required min={new Date().toISOString().split('T')[0]} value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} className="w-full h-14 px-4 bg-slate-800 border-2 border-slate-700 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-200 [color-scheme:dark]" /></div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                      Data {scheduledDate && `(${getWeekdayName(scheduledDate)})`}
+                    </label>
+                    <input 
+                      type="date" 
+                      required 
+                      min={getLocalDateString()} 
+                      value={scheduledDate} 
+                      onChange={(e) => setScheduledDate(e.target.value)} 
+                      className="w-full h-14 px-4 bg-slate-800 border-2 border-slate-700 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-200 [color-scheme:dark]" 
+                    />
+                  </div>
                   <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Retirada</label><input type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full h-14 px-4 bg-slate-800 border-2 border-slate-700 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-200 [color-scheme:dark]" /></div>
                   <div className="space-y-2"><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-amber-500/70">Devolução</label><input type="time" value={returnDeadline} onChange={(e) => setReturnDeadline(e.target.value)} className="w-full h-14 px-4 bg-slate-800 border-2 border-slate-700 rounded-2xl focus:border-amber-500/30 outline-none font-bold text-slate-200 [color-scheme:dark]" /></div>
                 </section>
+
+                {/* Weekly/Monthly Replication Option */}
+                {!editingRequestId && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 5 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    className="bg-slate-800/80 border-2 border-slate-700/80 rounded-3xl p-5 space-y-4 shadow-lg"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="size-10 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
+                          <Repeat size={18} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-slate-200">Replicar Reserva Semanal</h4>
+                          <p className="text-[10px] text-slate-400 font-bold capitalize">
+                            Deseja repetir todas as {getWeekdayName(scheduledDate)}s?
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setIsReplicating(!isReplicating)}
+                        className={cn(
+                          "w-14 h-8 rounded-full transition-colors relative p-1 cursor-pointer",
+                          isReplicating ? "bg-blue-600" : "bg-slate-700"
+                        )}
+                        title="Ativar replicação"
+                      >
+                        <div
+                          className={cn(
+                            "size-6 rounded-full bg-white transition-transform shadow-md",
+                            isReplicating ? "translate-x-6" : "translate-x-0"
+                          )}
+                        />
+                      </button>
+                    </div>
+
+                    {isReplicating && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }} 
+                        animate={{ opacity: 1, height: 'auto' }} 
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-4 pt-3 border-t border-white/5"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setReplicationMode('month')}
+                            className={cn(
+                              "p-3 rounded-2xl text-[10px] font-black uppercase tracking-wider border-2 transition-all text-left flex flex-col justify-between gap-1",
+                              replicationMode === 'month'
+                                ? "bg-blue-600/20 border-blue-500 text-blue-300 shadow-md"
+                                : "bg-slate-900/40 border-slate-700/50 text-slate-400 hover:border-slate-600"
+                            )}
+                          >
+                            <span className="font-extrabold capitalize text-xs">Mês de {getMonthName(scheduledDate)}</span>
+                            <span className="text-[9px] text-slate-400 font-bold capitalize">Todas as {getWeekdayName(scheduledDate)}s do mês</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setReplicationMode('4weeks')}
+                            className={cn(
+                              "p-3 rounded-2xl text-[10px] font-black uppercase tracking-wider border-2 transition-all text-left flex flex-col justify-between gap-1",
+                              replicationMode === '4weeks'
+                                ? "bg-blue-600/20 border-blue-500 text-blue-300 shadow-md"
+                                : "bg-slate-900/40 border-slate-700/50 text-slate-400 hover:border-slate-600"
+                            )}
+                          >
+                            <span className="font-extrabold text-xs">Próximas 4 semanas</span>
+                            <span className="text-[9px] text-slate-400 font-bold">4 semanas consecutivas</span>
+                          </button>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              Datas Selecionadas ({selectedReplicationDates.length}):
+                            </span>
+                            <span className="text-[9px] font-bold text-blue-400">Toque para incluir/remover</span>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            {getRecurringDates(scheduledDate, replicationMode).map((dStr) => {
+                              const isSelected = selectedReplicationDates.includes(dStr);
+                              const isBase = dStr === scheduledDate;
+                              return (
+                                <button
+                                  key={dStr}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isBase) return; // base date is mandatory
+                                    if (isSelected) {
+                                      setSelectedReplicationDates(prev => prev.filter(d => d !== dStr));
+                                    } else {
+                                      setSelectedReplicationDates(prev => [...prev, dStr].sort());
+                                    }
+                                  }}
+                                  className={cn(
+                                    "px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border",
+                                    isSelected
+                                      ? "bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/20"
+                                      : "bg-slate-900/60 text-slate-500 border-slate-700 hover:border-slate-500"
+                                  )}
+                                >
+                                  {isSelected && <Check size={12} className="stroke-[3]" />}
+                                  <span>{formatDate(dStr)}</span>
+                                  {isBase && <span className="text-[8px] opacity-75 uppercase">(Início)</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 text-[10px] font-bold text-blue-300">
+                          ✨ <strong>{selectedReplicationDates.length} reservas</strong> serão criadas automaticamente para cada uma das datas acima.
+                        </div>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                )}
 
                 <motion.div className="bg-slate-800/50 border border-white/5 rounded-3xl p-4 relative overflow-hidden">
                   <div className="flex items-center gap-2 mb-4"><Package size={16} className="text-blue-400"/><span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Estoque disponível</span></div>

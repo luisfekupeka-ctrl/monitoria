@@ -22,8 +22,13 @@ export function formatDate(date: string | Date) {
 
 export function formatTime(date: string | Date | null | undefined) {
   if (!date) return '--:--';
+  if (typeof date === 'string') {
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(date)) {
+      return date.slice(0, 5);
+    }
+  }
   const d = date instanceof Date ? date : new Date(date);
-  if (isNaN(d.getTime())) return '--:--';
+  if (isNaN(d.getTime())) return typeof date === 'string' ? date : '--:--';
   
   return d.toLocaleTimeString('pt-BR', {
     hour: '2-digit',
@@ -56,3 +61,22 @@ export function formatReturnDate(date: string | null | undefined) {
   if (day === today) return `Hoje às ${time}`;
   return `${day} às ${time}`;
 }
+
+/**
+ * Retorna a data local formatada como YYYY-MM-DD (sem risco de salto de fuso UTC)
+ */
+export function getLocalDateString(d: Date | string = new Date()): string {
+  const dateObj = typeof d === 'string' ? (d.includes('T') ? new Date(d) : new Date(d + 'T00:00:00')) : d;
+  if (isNaN(dateObj.getTime())) {
+    const fallback = new Date();
+    const year = fallback.getFullYear();
+    const month = String(fallback.getMonth() + 1).padStart(2, '0');
+    const day = String(fallback.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+

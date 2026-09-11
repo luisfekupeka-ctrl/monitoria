@@ -8,11 +8,14 @@ import {
   Plus,
   TrendingUp,
   TrendingDown,
-  ChevronRight
+  ChevronRight,
+  Calendar,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Product, Loan, Notebook } from '../types';
-import { cn, formatDate, formatTime } from '../lib/utils';
+import { cn, formatDate, formatTime, getLocalDateString } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { QRCodeSVG } from 'qrcode.react';
 import { Bell, Copy, Check as CheckIcon } from 'lucide-react';
@@ -21,52 +24,108 @@ export function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [todayRequests, setTodayRequests] = useState<any[]>([]);
+  const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
   const [activeToken, setActiveToken] = useState('initial-portal-access');
   const [isRotating, setIsRotating] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
-      const [pRes, lRes, nRes] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('loans').select('*, loan_items(notebook_code)'),
-        supabase.from('notebooks').select('*')
-      ]);
+      try {
+        const todayStr = getLocalDateString();
+        const [pRes, lRes, nRes, trRes, sRes, profsRes] = await Promise.all([
+          supabase.from('products').select('*'),
+          supabase.from('loans').select('*, loan_items(notebook_code)'),
+          supabase.from('notebooks').select('*'),
+          supabase.from('teacher_requests').select('*, professor:professors(name)').eq('scheduled_date', todayStr).order('start_time', { ascending: true }),
+          supabase.from('schedules').select('*').eq('scheduled_date', todayStr).order('start_time', { ascending: true }),
+          supabase.from('professors').select('id, name')
+        ]);
 
-      if (pRes.data) {
-        setProducts(pRes.data.map(p => ({
-          ...p,
-          minQuantity: p.min_quantity
-        })));
-      }
+        if (pRes.data) {
+          setProducts(pRes.data.map(p => ({
+            ...p,
+            minQuantity: p.min_quantity
+          })));
+        }
 
-      const { data: settingsData } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'active_request_token')
-        .single();
-      
-      if (settingsData?.value?.token) {
-        setActiveToken(settingsData.value.token);
-      }
+        const { data: settingsData } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', 'active_request_token')
+          .single();
+        
+        if (settingsData?.value?.token) {
+          setActiveToken(settingsData.value.token);
+        }
 
-      if (lRes.data) {
-        setLoans((lRes.data || []).map(l => ({
-          ...l,
-          beneficiaryId: l.beneficiary_id,
-          beneficiaryName: l.beneficiary_name || 'N/A',
-          loanDate: l.loan_date,
-          returnDate: l.return_date,
-          operatorId: l.operator_id || l.beneficiary_id,
-          operatorName: l.operator_name || 'Monitor',
-          items: Array.isArray(l.loan_items) ? l.loan_items.map((item: any) => item.notebook_code) : []
-        })));
-      }
+        if (lRes.data) {
+          setLoans((lRes.data || []).map(l => ({
+            ...l,
+            beneficiaryId: l.beneficiary_id,
+            beneficiaryName: l.beneficiary_name || 'N/A',
+            loanDate: l.loan_date,
+            returnDate: l.return_date,
+            operatorId: l.operator_id || l.beneficiary_id,
+            operatorName: l.operator_name || 'Monitor',
+            items: Array.isArray(l.loan_items) ? l.loan_items.map((item: any) => item.notebook_code) : []
+          })));
+        }
 
-      if (nRes.data) {
-        setNotebooks(nRes.data);
+        if (nRes.data) {
+          setNotebooks(nRes.data);
+        }
+
+        let rawTrData = trRes.data;
+        if (!rawTrData && trRes.error) {
+          const fallback = await supabase.from('teacher_requests').select('*').eq('scheduled_date', todayStr).order('start_time', { ascending: true });
+          rawTrData = fallback.data;
+        }
+
+        if (rawTrData) {
+          const profMap = Object.fromEntries((profsRes.data || []).map((p: any) => [p.id, p.name]));
+          setTodayRequests(rawTrData.map((r: any) => ({
+            ...r,
+            professor: r.professor?.name ? r.professor : { name: profMap[r.professor_id] || 'Professor' }
+          })));
+        }
+
+        if (sRes.data) {
+          setTodaySchedules(sRes.data);
+        }
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
       }
     };
+
     fetchData();
+
+    // Auto-polling interval every 20s
+    const pollInterval = setInterval(() => {
+      fetchData();
+    }, 20000);
+
+    // Supabase Realtime channel for instant reactive updates
+    const channel = supabase
+      .channel('dashboard-realtime-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teacher_requests' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'loans' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notebooks' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    return () => {
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const availableNotebooks = (notebooks || []).filter(n => n.status === 'available').length;
@@ -75,6 +134,14 @@ export function Dashboard() {
   const recentMovements = 28; // Mocked for now
 
   const stats = [
+    { 
+      label: 'Reservas para Hoje', 
+      value: todayRequests.length, 
+      icon: Calendar, 
+      color: 'bg-amber-500/10 text-amber-600',
+      trend: `${todayRequests.length} ped.`,
+      trendUp: todayRequests.length > 0
+    },
     { 
       label: 'Equipamentos Disponíveis', 
       value: availableNotebooks, 
@@ -98,14 +165,6 @@ export function Dashboard() {
       color: 'bg-orange-100 text-orange-600',
       trend: '+12%',
       trendUp: true
-    },
-    { 
-      label: 'Movimentações Recentes', 
-      value: recentMovements, 
-      icon: ArrowRightLeft, 
-      color: 'bg-slate-100 text-slate-600',
-      trend: '-5%',
-      trendUp: false
     },
   ];
 
@@ -219,6 +278,118 @@ export function Dashboard() {
         ))}
       </div>
 
+      {/* Today's Teacher Reservations Table */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-amber-50/30">
+          <div className="flex items-center gap-3">
+            <div className="size-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center">
+              <Calendar size={20} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-slate-900">Reservas de Professores para Hoje ({todayRequests.length})</h3>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                {formatDate(getLocalDateString())} • Solicitações feitas pelos professores no portal
+              </p>
+            </div>
+          </div>
+          <Link 
+            to="/emprestimos"
+            className="bg-amber-500 text-white px-5 py-2.5 rounded-xl text-xs font-black hover:bg-amber-600 transition-all shadow-md shadow-amber-500/20 flex items-center gap-2"
+          >
+            <span>GERENCIAR NA MONITORIA</span>
+            <ChevronRight size={16} />
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50">
+                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Professor</th>
+                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Equipamentos Pedidos</th>
+                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Horário</th>
+                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Destino</th>
+                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</th>
+                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {todayRequests.map((req) => (
+                <tr key={req.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-4">
+                      <div className="size-10 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 font-black text-xs">
+                        {(req.professor?.name || 'P').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-black text-slate-900">{req.professor?.name || 'Professor'}</span>
+                        {req.observations && (
+                          <span className="text-[10px] font-medium text-slate-400 italic">"{req.observations}"</span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-8 py-5">
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.keys(req.requested_items || {}).filter(k => req.requested_items[k] > 0).map(type => (
+                        <span key={type} className="px-2.5 py-1 bg-blue-50 text-sesi-blue rounded-lg text-[10px] font-black border border-blue-100 uppercase">
+                          {req.requested_items[type]}x {type}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={14} className="text-amber-500" />
+                      <span className="text-sm font-black text-slate-700">{req.start_time}</span>
+                      {req.return_deadline && (
+                        <span className="text-[10px] font-bold text-slate-400">até {req.return_deadline}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-8 py-5">
+                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
+                      {req.destination || 'Geral'}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5">
+                    <span className={cn(
+                      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase",
+                      req.status === 'pending' && "bg-amber-50 text-amber-600 border border-amber-200",
+                      req.status === 'approved' && "bg-emerald-50 text-emerald-600 border border-emerald-200",
+                      req.status === 'prepared' && "bg-blue-50 text-blue-600 border border-blue-200",
+                      req.status === 'rejected' && "bg-rose-50 text-rose-600 border border-rose-200"
+                    )}>
+                      {req.status === 'pending' && 'Pendente'}
+                      {req.status === 'approved' && 'Aprovada'}
+                      {req.status === 'prepared' && 'Preparada'}
+                      {req.status === 'rejected' && 'Rejeitada'}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5 text-right">
+                    <Link
+                      to="/emprestimos"
+                      className="inline-flex items-center gap-1 text-xs font-black text-sesi-blue hover:underline"
+                    >
+                      Separar →
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {todayRequests.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-8 py-12 text-center text-slate-400 text-sm font-medium italic">
+                    <div className="flex flex-col items-center gap-2">
+                      <Calendar size={28} className="opacity-20" />
+                      Nenhuma reserva solicitada por professores para hoje.
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Recent Loans Table */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
@@ -226,9 +397,9 @@ export function Dashboard() {
             <h3 className="text-xl font-black text-slate-900">Empréstimos Ativos</h3>
             <p className="text-xs text-slate-500 font-medium mt-0.5">Acompanhamento em tempo real das saídas.</p>
           </div>
-          <button className="bg-sesi-blue/10 text-sesi-blue px-4 py-2 rounded-xl text-xs font-black hover:bg-sesi-blue/20 transition-all">
+          <Link to="/emprestimos" className="bg-sesi-blue/10 text-sesi-blue px-4 py-2 rounded-xl text-xs font-black hover:bg-sesi-blue/20 transition-all">
             Ver todos
-          </button>
+          </Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">

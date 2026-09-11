@@ -23,7 +23,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { Notebook } from '../types';
-import { cn } from '../lib/utils';
+import { cn, getLocalDateString } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -91,7 +91,7 @@ export function Notebooks() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Equipamentos");
       
-      const date = new Date().toISOString().split('T')[0];
+      const date = getLocalDateString();
       XLSX.writeFile(wb, `equipamentos_sesi_${date}.xlsx`);
     } catch (err) {
       alert('Erro ao exportar Excel.');

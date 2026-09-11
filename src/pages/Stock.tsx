@@ -16,7 +16,7 @@ import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { QRCodeSVG } from 'qrcode.react';
 import { Product, Beneficiary } from '../types';
-import { cn } from '../lib/utils';
+import { cn, getLocalDateString } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -73,7 +73,7 @@ export function Stock() {
       XLSX.utils.book_append_sheet(wb, ws, "Estoque");
       
       // Generate filename with date
-      const date = new Date().toISOString().split('T')[0];
+      const date = getLocalDateString();
       XLSX.writeFile(wb, `estoque_sesi_${date}.xlsx`);
     } catch (err) {
       alert('Erro ao exportar Excel: Verifique se os dados estão carregados corretamente.');
