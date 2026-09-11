@@ -1046,9 +1046,9 @@ export function Loans() {
           <div className="flex flex-wrap items-center gap-3">
              {/* Filter toolbar for Solicitacoes */}
              {activeTab === 'solicitacoes' && (
-               <div className="flex flex-wrap items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60">
-                 {/* Status pills */}
-                 <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-xs border border-slate-200/50">
+               <div className="w-full xl:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-100/90 p-2 sm:p-1.5 rounded-2xl border border-slate-200/60 shadow-xs">
+                 {/* Status pills (swipeable on mobile) */}
+                 <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-0.5 px-0.5 bg-white rounded-xl shadow-xs border border-slate-200/50">
                    {[
                      { id: 'pending_approved', label: 'Ativas' },
                      { id: 'pending', label: 'Pendentes' },
@@ -1060,7 +1060,7 @@ export function Loans() {
                        key={st.id}
                        onClick={() => setRequestStatusFilter(st.id as any)}
                        className={cn(
-                         "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all",
+                         "shrink-0 min-w-fit px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[9px] font-black uppercase whitespace-nowrap transition-all touch-manipulation",
                          requestStatusFilter === st.id
                            ? "bg-rose-500 text-white shadow-sm"
                            : "text-slate-500 hover:text-slate-800"
@@ -1071,8 +1071,8 @@ export function Loans() {
                    ))}
                  </div>
 
-                 {/* Date pills */}
-                 <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-xs border border-slate-200/50">
+                 {/* Date pills (swipeable on mobile) */}
+                 <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-0.5 px-0.5 bg-white rounded-xl shadow-xs border border-slate-200/50">
                    {[
                      { id: 'upcoming', label: 'Próximos' },
                      { id: 'today', label: 'Hoje' },
@@ -1085,7 +1085,7 @@ export function Loans() {
                        key={df.id}
                        onClick={() => setRequestDateFilterMode(df.id as any)}
                        className={cn(
-                         "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all",
+                         "shrink-0 min-w-fit px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[9px] font-black uppercase whitespace-nowrap transition-all touch-manipulation",
                          requestDateFilterMode === df.id
                            ? "bg-slate-900 text-white shadow-sm"
                            : "text-slate-500 hover:text-slate-800"
@@ -1100,7 +1100,7 @@ export function Loans() {
                        type="date" 
                        value={selectedScheduleDate}
                        onChange={(e) => setSelectedScheduleDate(e.target.value)}
-                       className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-[9px] font-bold text-slate-700 outline-none"
+                       className="shrink-0 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[10px] sm:text-[9px] font-bold text-slate-700 outline-none"
                      />
                    )}
                  </div>
@@ -1108,7 +1108,7 @@ export function Loans() {
                  {(teacherRequests || []).length > 0 && (
                    <button
                      onClick={handleClearOldSchedules}
-                     className="px-3 py-1.5 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-xs flex items-center gap-1.5"
+                     className="px-3 py-1.5 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-xl text-[10px] sm:text-[9px] font-black uppercase tracking-widest transition-all shadow-xs flex items-center justify-center gap-1.5 touch-manipulation"
                      title="Apagar solicitações de meses anteriores"
                    >
                      <Trash2 size={12} />
@@ -1120,8 +1120,8 @@ export function Loans() {
 
              {/* Filter toolbar for Agendamentos */}
              {activeTab === 'agendamentos' && (
-               <div className="flex flex-wrap items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60">
-                 <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-xs border border-slate-200/50">
+               <div className="w-full xl:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-100/90 p-2 sm:p-1.5 rounded-2xl border border-slate-200/60 shadow-xs">
+                 <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-0.5 px-0.5 bg-white rounded-xl shadow-xs border border-slate-200/50">
                    {[
                      { id: 'upcoming', label: 'Próximos' },
                      { id: 'today', label: 'Hoje' },
@@ -1133,7 +1133,7 @@ export function Loans() {
                        key={df.id}
                        onClick={() => setScheduleDateFilterMode(df.id as any)}
                        className={cn(
-                         "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all",
+                         "shrink-0 min-w-fit px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[9px] font-black uppercase whitespace-nowrap transition-all touch-manipulation",
                          scheduleDateFilterMode === df.id
                            ? "bg-amber-500 text-white shadow-sm"
                            : "text-slate-500 hover:text-slate-800"
@@ -1148,7 +1148,7 @@ export function Loans() {
                        type="date" 
                        value={selectedScheduleDate}
                        onChange={(e) => setSelectedScheduleDate(e.target.value)}
-                       className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-[9px] font-bold text-slate-700 outline-none"
+                       className="shrink-0 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[10px] sm:text-[9px] font-bold text-slate-700 outline-none"
                      />
                    )}
                  </div>
@@ -1156,7 +1156,7 @@ export function Loans() {
                  {(schedules || []).length > 0 && (
                    <button
                      onClick={handleClearOldSchedules}
-                     className="px-3 py-1.5 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-xs flex items-center gap-1.5"
+                     className="px-3 py-1.5 bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-xl text-[10px] sm:text-[9px] font-black uppercase tracking-widest transition-all shadow-xs flex items-center justify-center gap-1.5 touch-manipulation"
                    >
                      <Trash2 size={12} />
                      Limpar Antigos
@@ -1306,61 +1306,65 @@ export function Loans() {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  className="bg-white rounded-2xl md:rounded-[3.5rem] border border-slate-100 shadow-lg shadow-slate-200/40 p-5 md:p-8 hover:border-amber-400/40 transition-all group"
+                  className="bg-white rounded-2xl sm:rounded-3xl md:rounded-[3.5rem] border border-slate-100 shadow-lg shadow-slate-200/40 p-4 sm:p-6 md:p-8 hover:border-amber-400/40 transition-all group flex flex-col justify-between"
                 >
-                  <div className="flex items-center justify-between mb-4 md:mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="size-10 md:size-14 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
-                        <Calendar size={24} />
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-3 md:mb-6">
+                      <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                        <div className="size-10 sm:size-12 md:size-14 rounded-xl md:rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
+                          <Calendar size={20} className="sm:hidden" />
+                          <Calendar size={24} className="hidden sm:block" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-black text-slate-900 tracking-tight leading-tight text-sm sm:text-base md:text-lg truncate">{prof?.name || 'Professor'}</h4>
+                          <p className="text-[8px] sm:text-[10px] font-bold text-slate-400 mt-0.5 sm:mt-1 uppercase tracking-widest truncate">
+                            {schedule.scheduled_date === getLocalDateString() ? 'Agendado para Hoje' : `Agendado para ${formatDate(schedule.scheduled_date)} (${getWeekdayName(schedule.scheduled_date)})`}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-black text-slate-900 tracking-tight leading-none text-base md:text-lg">{prof?.name || 'Professor'}</h4>
-                        <p className="text-[9px] md:text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                          {schedule.scheduled_date === new Date().toISOString().split('T')[0] ? 'Agendado para Hoje' : `Agendado para ${formatDate(schedule.scheduled_date)} (${getWeekdayName(schedule.scheduled_date)})`}
-                        </p>
+                      <div className="px-2 sm:px-3 py-1 bg-amber-100 text-amber-600 rounded-lg text-[8px] sm:text-[10px] font-black uppercase shrink-0">Pendente</div>
+                    </div>
+                    
+                    <div className="space-y-2.5 sm:space-y-3 md:space-y-4">
+                      <div className="flex items-center justify-between text-[10px] sm:text-xs gap-2">
+                         <span className="font-bold text-slate-400 uppercase tracking-widest shrink-0">Horário</span>
+                         <span className="font-black text-slate-900 text-right">{formatTime(schedule.start_time)}</span>
+                      </div>
+                      {schedule.return_deadline && (
+                        <div className="flex items-center justify-between text-[10px] sm:text-xs gap-2">
+                           <span className="font-bold text-slate-400 uppercase tracking-widest shrink-0">Devolução</span>
+                           <span className="font-black text-sesi-blue text-right">{formatTime(schedule.return_deadline)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-[10px] sm:text-xs gap-2">
+                         <span className="font-bold text-slate-400 uppercase tracking-widest shrink-0">Equipamentos</span>
+                         <span className="font-black text-sesi-blue text-right">{schedule.equipment_codes?.length || 0} Itens</span>
                       </div>
                     </div>
-                    <div className="px-2 md:px-3 py-1 bg-amber-100 text-amber-600 rounded-lg text-[9px] md:text-[10px] font-black uppercase">Pendente</div>
-                  </div>
-                  
-                  <div className="space-y-3 md:space-y-4">
-                    <div className="flex items-center justify-between text-[10px] md:text-xs">
-                       <span className="font-bold text-slate-400 uppercase tracking-widest">Horário</span>
-                       <span className="font-black text-slate-900">{formatTime(schedule.start_time)}</span>
-                    </div>
-                    {schedule.return_deadline && (
-                      <div className="flex items-center justify-between text-[10px] md:text-xs">
-                         <span className="font-bold text-slate-400 uppercase tracking-widest">Devolução</span>
-                         <span className="font-black text-sesi-blue">{formatTime(schedule.return_deadline)}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between text-[10px] md:text-xs">
-                       <span className="font-bold text-slate-400 uppercase tracking-widest">Equipamentos</span>
-                       <span className="font-black text-sesi-blue">{schedule.equipment_codes?.length || 0} Itens</span>
+
+                    <div className="mt-4 sm:mt-6 flex flex-wrap gap-1.5 md:gap-2">
+                      {schedule.equipment_codes?.slice(0, 3).map((code: string) => (
+                        <span key={code} className="px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[9px] sm:text-[10px] font-black font-mono">{code}</span>
+                      ))}
+                      {(schedule.equipment_codes?.length || 0) > 3 && (
+                        <span className="px-2 py-1 bg-slate-50 text-slate-400 rounded-lg text-[9px] sm:text-[10px] font-bold">+{schedule.equipment_codes.length - 3}</span>
+                      )}
                     </div>
                   </div>
 
-                  <div className="mt-6 flex flex-wrap gap-1.5 md:gap-2">
-                    {schedule.equipment_codes?.slice(0, 3).map((code: string) => (
-                      <span key={code} className="px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[9px] md:text-[10px] font-black font-mono">{code}</span>
-                    ))}
-                    {(schedule.equipment_codes?.length || 0) > 3 && (
-                      <span className="px-2 py-1 bg-slate-50 text-slate-400 rounded-lg text-[10px] font-bold">+{schedule.equipment_codes.length - 3}</span>
-                    )}
-                  </div>
-
-                  <div className="mt-8 flex gap-2 md:gap-3">
+                  <div className="mt-4 sm:mt-6 md:mt-8 flex items-center gap-2">
                     <button 
                       onClick={() => handleStartSchedule(schedule)}
-                      className="flex-1 py-3 md:py-4 bg-slate-900 text-white rounded-2xl text-[9px] md:text-[10px] font-black hover:bg-sesi-blue transition-all shadow-lg shadow-slate-900/10"
+                      className="flex-1 py-3 sm:py-3.5 bg-slate-900 text-white rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black hover:bg-sesi-blue active:scale-95 transition-all shadow-lg shadow-slate-900/10 touch-manipulation"
                     >
                       INICIAR AGORA
                     </button>
                     <button 
                       onClick={() => handleDeleteSchedule(schedule.id)}
-                      className="size-12 md:size-14 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center shrink-0"
+                      className="size-10 sm:size-11 md:size-12 bg-rose-50 text-rose-500 border border-rose-100 rounded-xl sm:rounded-2xl hover:bg-rose-100 active:scale-95 transition-all flex items-center justify-center shrink-0 touch-manipulation"
+                      title="Excluir Agendamento"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </motion.div>
@@ -1374,98 +1378,101 @@ export function Loans() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white rounded-2xl md:rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 p-4 md:p-8 hover:border-rose-400/40 transition-all group"
+                className="bg-white rounded-2xl sm:rounded-3xl md:rounded-[3.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 p-4 sm:p-6 md:p-8 hover:border-rose-400/40 transition-all group flex flex-col justify-between"
               >
-                <div className="flex items-center justify-between mb-3 md:mb-6">
-                  <div className="flex items-center gap-3 md:gap-4">
-                    <div className="size-10 md:size-14 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center">
-                      <Bell size={24} />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-slate-900 tracking-tight leading-none text-base md:text-lg">{request.professor?.name || 'Professor'}</h4>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                        <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Solicitação</p>
-                        <span className="text-[8px] md:text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                          • <Clock9 size={10} /> {formatDate(request.created_at)} {formatTime(request.created_at)}
-                        </span>
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-3 md:mb-6">
+                    <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                      <div className="size-10 sm:size-12 md:size-14 rounded-xl md:rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
+                        <Bell size={20} className="sm:hidden" />
+                        <Bell size={24} className="hidden sm:block" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-black text-slate-900 tracking-tight leading-tight text-sm sm:text-base md:text-lg truncate">{request.professor?.name || 'Professor'}</h4>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5 sm:mt-1">
+                          <p className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Solicitação</p>
+                          <span className="text-[8px] sm:text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1">
+                            • <Clock9 size={10} /> {formatDate(request.created_at)} {formatTime(request.created_at)}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className={cn(
-                    "px-2 md:px-3 py-1 rounded-lg text-[9px] md:text-[10px] font-black uppercase",
-                    request.status === 'pending' && 'bg-amber-100 text-amber-600',
-                    request.status === 'approved' && 'bg-emerald-100 text-emerald-600',
-                    request.status === 'rejected' && 'bg-rose-100 text-rose-600',
-                    request.status === 'prepared' && 'bg-blue-100 text-blue-600'
-                  )}>
-                    {request.status === 'pending' && 'Pendente'}
-                    {request.status === 'approved' && 'Aprovada'}
-                    {request.status === 'rejected' && 'Rejeitada'}
-                    {request.status === 'prepared' && 'Preparada'}
-                  </div>
-                </div>
-                
-                <div className="space-y-3 md:space-y-4">
-                  <div className="flex items-center justify-between text-[10px] md:text-xs">
-                     <span className="font-bold text-slate-400 uppercase tracking-widest">Data/Hora</span>
-                     <span className="font-black text-slate-900">
-                       {formatDate(request.scheduled_date)} ({getWeekdayName(request.scheduled_date)}) • {request.start_time}
-                     </span>
-                  </div>
-                  {request.return_deadline && (
-                    <div className="flex items-center justify-between text-[10px] md:text-xs">
-                       <span className="font-bold text-slate-400 uppercase tracking-widest">Devolução</span>
-                       <span className="font-black text-sesi-blue">{request.return_deadline}</span>
+                    <div className={cn(
+                      "px-2 sm:px-3 py-1 rounded-lg text-[8px] sm:text-[10px] font-black uppercase shrink-0",
+                      request.status === 'pending' && 'bg-amber-100 text-amber-600',
+                      request.status === 'approved' && 'bg-emerald-100 text-emerald-600',
+                      request.status === 'rejected' && 'bg-rose-100 text-rose-600',
+                      request.status === 'prepared' && 'bg-blue-100 text-blue-600'
+                    )}>
+                      {request.status === 'pending' && 'Pendente'}
+                      {request.status === 'approved' && 'Aprovada'}
+                      {request.status === 'rejected' && 'Rejeitada'}
+                      {request.status === 'prepared' && 'Preparada'}
                     </div>
-                  )}
-                  {request.destination && (
-                    <div className="flex items-center justify-between text-[10px] md:text-xs">
-                       <span className="font-bold text-slate-400 uppercase tracking-widest">Destino</span>
-                       <span className="font-black text-sesi-orange truncate max-w-[120px] md:max-w-[150px]">{request.destination}</span>
+                  </div>
+                  
+                  <div className="space-y-2.5 sm:space-y-3 md:space-y-4">
+                    <div className="flex items-center justify-between text-[10px] sm:text-xs gap-2">
+                       <span className="font-bold text-slate-400 uppercase tracking-widest shrink-0">Data/Hora</span>
+                       <span className="font-black text-slate-900 text-right">
+                         {formatDate(request.scheduled_date)} ({getWeekdayName(request.scheduled_date)}) • {request.start_time}
+                       </span>
                     </div>
-                  )}
-                  {request.observations && (
-                    <div className="mt-2 p-2.5 md:p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                      <span className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Obs</span>
-                      <p className="text-[9px] md:text-[10px] text-slate-600 leading-normal font-bold italic truncate md:whitespace-normal">"{request.observations}"</p>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens Solicitados</span>
-                    <div className="flex flex-wrap gap-1.5 md:gap-2">
-                      {Object.keys(request.requested_items || {}).map(type => {
-                        const qty = (request.requested_items as any)[type];
-                        if (qty === 0) return null;
-                        return (
-                          <div key={type} className="px-2 md:px-3 py-1 md:py-1.5 bg-slate-50 border border-slate-100 rounded-lg md:rounded-xl flex items-center gap-1.5 md:gap-2">
-                            <span className="size-1.5 md:size-2 rounded-full bg-sesi-blue" />
-                            <span className="text-[9px] md:text-[10px] font-black text-slate-700 uppercase">{qty}x {type}</span>
-                          </div>
-                        );
-                      })}
+                    {request.return_deadline && (
+                      <div className="flex items-center justify-between text-[10px] sm:text-xs gap-2">
+                         <span className="font-bold text-slate-400 uppercase tracking-widest shrink-0">Devolução</span>
+                         <span className="font-black text-sesi-blue text-right">{request.return_deadline}</span>
+                      </div>
+                    )}
+                    {request.destination && (
+                      <div className="flex items-center justify-between text-[10px] sm:text-xs gap-2">
+                         <span className="font-bold text-slate-400 uppercase tracking-widest shrink-0">Destino</span>
+                         <span className="font-black text-sesi-orange truncate max-w-[140px] sm:max-w-[180px] text-right">{request.destination}</span>
+                      </div>
+                    )}
+                    {request.observations && (
+                      <div className="p-2.5 sm:p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                        <span className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Obs</span>
+                        <p className="text-[9px] sm:text-[10px] text-slate-600 leading-normal font-bold italic line-clamp-3 sm:line-clamp-none">"{request.observations}"</p>
+                      </div>
+                    )}
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <span className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest">Itens Solicitados</span>
+                      <div className="flex flex-wrap gap-1 sm:gap-2">
+                        {Object.keys(request.requested_items || {}).map(type => {
+                          const qty = (request.requested_items as any)[type];
+                          if (qty === 0) return null;
+                          return (
+                            <div key={type} className="px-2 sm:px-3 py-1 sm:py-1.5 bg-slate-50 border border-slate-100 rounded-lg sm:rounded-xl flex items-center gap-1.5">
+                              <span className="size-1.5 sm:size-2 rounded-full bg-sesi-blue" />
+                              <span className="text-[9px] sm:text-[10px] font-black text-slate-700 uppercase">{qty}x {type}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {(request.status === 'pending' || request.status === 'approved') && (
-                  <div className="mt-6 md:mt-8 flex gap-2 md:gap-3">
+                  <div className="mt-4 sm:mt-6 md:mt-8 flex items-center gap-2">
                     <button 
                       onClick={() => handleOpenPrepare(request)}
-                      className="flex-1 py-3 md:py-4 bg-sesi-blue text-white rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-sesi-blue/90 transition-all shadow-lg shadow-sesi-blue/20 flex items-center justify-center gap-2"
+                      className="flex-1 py-3 sm:py-3.5 bg-sesi-blue text-white rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black hover:bg-sesi-blue/90 active:scale-95 transition-all shadow-lg shadow-sesi-blue/20 flex items-center justify-center gap-1.5 sm:gap-2 touch-manipulation"
                     >
                       <Laptop size={15} />
                       PREPARAR KIT
                     </button>
                     <button 
                       onClick={() => handleRejectRequest(request)}
-                      className="px-3 md:px-4 py-3 md:py-4 bg-amber-50 text-amber-600 rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-amber-100 transition-all"
+                      className="px-3 sm:px-4 py-3 sm:py-3.5 bg-amber-50 text-amber-600 border border-amber-200/50 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black hover:bg-amber-100 active:scale-95 transition-all touch-manipulation shrink-0"
                       title="Rejeitar Solicitação"
                     >
                       Rejeitar
                     </button>
                     <button 
                       onClick={() => handleDeleteRequest(request.id)}
-                      className="size-11 md:size-12 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center shrink-0"
+                      className="size-10 sm:size-11 md:size-12 bg-rose-50 text-rose-500 border border-rose-100 rounded-xl sm:rounded-2xl hover:bg-rose-100 active:scale-95 transition-all flex items-center justify-center shrink-0 touch-manipulation"
                       title="Excluir Permanentemente"
                     >
                       <Trash2 size={16} />
@@ -1474,17 +1481,17 @@ export function Loans() {
                 )}
 
                 {request.status === 'prepared' && (
-                  <div className="mt-6 md:mt-8 flex gap-2 md:gap-3">
+                  <div className="mt-4 sm:mt-6 md:mt-8 flex items-center gap-2">
                     <button 
                       onClick={() => setActiveTab('agendamentos')}
-                      className="flex-1 py-3 md:py-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-2xl md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
+                      className="flex-1 py-3 sm:py-3.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black hover:bg-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-1.5 sm:gap-2 touch-manipulation"
                     >
                       <CheckCircle2 size={15} className="text-emerald-500" />
                       KIT PREPARADO • VER NA AGENDA
                     </button>
                     <button 
                       onClick={() => handleDeleteRequest(request.id)}
-                      className="size-11 md:size-12 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center shrink-0"
+                      className="size-10 sm:size-11 md:size-12 bg-rose-50 text-rose-500 border border-rose-100 rounded-xl sm:rounded-2xl hover:bg-rose-100 active:scale-95 transition-all flex items-center justify-center shrink-0 touch-manipulation"
                       title="Excluir Solicitação"
                     >
                       <Trash2 size={16} />
@@ -1493,10 +1500,10 @@ export function Loans() {
                 )}
 
                 {request.status === 'rejected' && (
-                  <div className="mt-6 md:mt-8 flex gap-2 md:gap-3">
+                  <div className="mt-4 sm:mt-6 md:mt-8 flex items-center gap-2">
                     <button 
                       onClick={() => handleDeleteRequest(request.id)}
-                      className="w-full py-3 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-rose-50 text-rose-500 border border-rose-100 rounded-xl sm:rounded-2xl hover:bg-rose-100 active:scale-95 text-[10px] sm:text-xs font-black uppercase transition-all flex items-center justify-center gap-2 touch-manipulation"
                     >
                       <Trash2 size={14} />
                       Excluir Solicitação Rejeitada
@@ -1945,13 +1952,13 @@ export function Loans() {
             <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto scrollbar-hide">
               {/* Left side: Item Selection */}
               <div className="w-full lg:w-2/3 p-4 md:p-10 lg:p-12 border-b lg:border-r lg:border-b-0 border-slate-100">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 md:mb-8">
                   {(() => {
                     const req = selectedRequest.requested_items || {};
                     const types = Object.keys(req).filter(k => req[k] > 0);
                     const tabList = types.length === 0 ? ['notebook'] : types.includes('kit') ? Array.from(new Set(['notebook', ...types])) : types;
                     return (
-                      <div className="flex flex-wrap gap-2 md:gap-4">
+                      <div className="flex overflow-x-auto scrollbar-hide py-1 gap-2 md:gap-4">
                         {tabList.map((type) => {
                           const actualType = type === 'kit' ? 'notebook' : type;
                           const qty = (req as any)[type] || 0;
@@ -1960,7 +1967,7 @@ export function Loans() {
                               key={type}
                               onClick={() => setActivePreparationType(actualType)}
                               className={cn(
-                                "px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all",
+                                "shrink-0 min-w-fit px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all touch-manipulation",
                                 activePreparationType === actualType 
                                   ? "bg-sesi-blue text-white shadow-lg shadow-sesi-blue/20" 
                                   : "bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 border border-slate-100"
@@ -1973,15 +1980,15 @@ export function Loans() {
                       </div>
                     );
                   })()}
-                  <div className="w-full flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="w-full flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                     <div className="flex-1 relative">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                       <input 
-                        type="text"
+                        type="text" 
                         placeholder="Filtrar por código ou lab..."
                         value={prepareSearchTerm}
                         onChange={(e) => setPrepareSearchTerm(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-sesi-blue/10 outline-none font-bold text-slate-600"
+                        className="w-full pl-12 pr-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:ring-4 focus:ring-sesi-blue/10 outline-none font-bold text-xs sm:text-sm text-slate-600"
                       />
                     </div>
                     <button
@@ -2022,14 +2029,14 @@ export function Loans() {
                         const toAdd = [...available, ...loaned].slice(0, qtyToSelect);
                         setPreparationItems(prev => Array.from(new Set([...prev, ...toAdd.map(n => n.code)])));
                       }}
-                      className="w-full md:w-auto px-6 py-3 bg-sesi-orange text-white rounded-xl md:rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-sesi-orange/20 hover:scale-105 transition-all text-center"
+                      className="w-full md:w-auto px-5 sm:px-6 py-2.5 sm:py-3 bg-sesi-orange text-white rounded-xl md:rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-sesi-orange/20 hover:scale-105 active:scale-95 transition-all text-center touch-manipulation"
                     >
                       Selecionar Automático
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-4 gap-2 md:gap-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-4 gap-2 md:gap-4 max-h-[45vh] md:max-h-[50vh] overflow-y-auto pr-1 md:pr-2 custom-scrollbar">
                   {notebooks
                     .filter(n => n.type === activePreparationType && n.status !== 'maintenance')
                     .filter(n => {
