@@ -543,7 +543,8 @@ export function Purchases() {
           <AnimatePresence mode="popLayout">
             {filteredPurchases.map((purchase) => {
               const isExpanded = !!expandedRequests[purchase.id];
-              const totalEst = purchase.items.reduce((acc, it) => acc + ((it.estimated_price || 0) * (it.quantity || 1)), 0);
+              const itemsList = purchase.items || [];
+              const totalEst = itemsList.reduce((acc, it) => acc + ((it.estimated_price || 0) * (it.quantity || 1)), 0);
 
               return (
                 <motion.div
@@ -586,7 +587,7 @@ export function Purchases() {
                       </span>
 
                       <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-black rounded">
-                        {purchase.items.length} {purchase.items.length === 1 ? 'item' : 'itens'}
+                        {itemsList.length} {itemsList.length === 1 ? 'item' : 'itens'}
                       </span>
                     </div>
 

@@ -229,7 +229,7 @@ export function Dashboard() {
         const activeLoans = (loans || []).filter(l => l.status === 'active');
         
         if (isAfterCutoff && activeLoans.length > 0) {
-          const uniqueNames = [...new Set(activeLoans.map(l => l.beneficiaryName))];
+          const uniqueNames = [...new Set(activeLoans.map(l => l.beneficiaryName).filter(Boolean))];
           const totalItems = activeLoans.reduce((acc, l) => acc + (l.items?.length || 0), 0);
           
           return (
@@ -327,7 +327,7 @@ export function Dashboard() {
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
                       <div className="size-10 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 font-black text-xs">
-                        {(req.professor?.name || 'P').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                        {((req.professor?.name || 'P').trim().split(' ').filter(Boolean).map((n: string) => n[0]).join('') || 'P').slice(0, 2).toUpperCase()}
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-black text-slate-900">{req.professor?.name || 'Professor'}</span>
@@ -339,11 +339,16 @@ export function Dashboard() {
                   </td>
                   <td className="px-8 py-5">
                     <div className="flex flex-wrap gap-1.5">
-                      {Object.keys(req.requested_items || {}).filter(k => req.requested_items[k] > 0).map(type => (
-                        <span key={type} className="px-2.5 py-1 bg-blue-50 text-sesi-blue rounded-lg text-[10px] font-black border border-blue-100 uppercase">
-                          {req.requested_items[type]}x {type}
-                        </span>
-                      ))}
+                      {(() => {
+                        const items = typeof req.requested_items === 'string' 
+                          ? (() => { try { return JSON.parse(req.requested_items); } catch { return {}; } })()
+                          : (req.requested_items || {});
+                        return Object.keys(items || {}).filter(k => items[k] > 0).map(type => (
+                          <span key={type} className="px-2.5 py-1 bg-blue-50 text-sesi-blue rounded-lg text-[10px] font-black border border-blue-100 uppercase">
+                            {items[type]}x {type}
+                          </span>
+                        ));
+                      })()}
                     </div>
                   </td>
                   <td className="px-8 py-5">
@@ -427,7 +432,7 @@ export function Dashboard() {
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
                       <div className="size-10 rounded-2xl bg-sesi-blue/10 flex items-center justify-center text-sesi-blue font-black text-xs">
-                        {(loan.beneficiaryName || 'U').split(' ').map(n => n[0]).join('')}
+                        {((loan.beneficiaryName || 'U').trim().split(' ').filter(Boolean).map(n => n[0]).join('') || 'U').slice(0, 2).toUpperCase()}
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-black text-slate-900">{loan.beneficiaryName || 'N/A'}</span>

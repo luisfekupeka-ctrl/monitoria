@@ -194,11 +194,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 "size-8 rounded-full flex items-center justify-center font-bold text-xs",
                 isDark ? "bg-sesi-blue/20 text-sesi-blue" : "bg-sesi-blue/10 text-sesi-blue"
               )}>
-                {(user?.name || 'U').split(' ').map(n => n[0]).join('')}
+                {((user?.name || 'U').trim().split(' ').filter(Boolean).map(n => n[0]).join('') || 'U').slice(0, 2).toUpperCase()}
               </div>
               <div className="flex flex-col">
-                <p className={cn("text-xs font-bold leading-none", isDark ? "text-white" : "text-slate-900")}>{user?.name}</p>
-                <p className={cn("text-[10px] mt-1 capitalize", isDark ? "text-gray-500" : "text-slate-500")}>{user?.role}</p>
+                <p className={cn("text-xs font-bold leading-none", isDark ? "text-white" : "text-slate-900")}>{user?.name || 'Usuário'}</p>
+                <p className={cn("text-[10px] mt-1 capitalize", isDark ? "text-gray-500" : "text-slate-500")}>{user?.role || 'operador'}</p>
               </div>
             </div>
             <button 

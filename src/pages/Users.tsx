@@ -123,7 +123,7 @@ export function Users() {
             const userLoans = activeLoans.filter(l => (l.beneficiaryId || (l as any).beneficiary_id) === beneficiary.id);
             const totalItems = userLoans.reduce((acc, loan) => acc + (loan.items?.length || 0), 0);
             const itemsList = userLoans.flatMap(l => l.items || []);
-            const firstName = beneficiary.name.split(' ')[0];
+            const firstName = (beneficiary?.name || 'Colega').trim().split(' ')[0] || 'Colega';
 
             // Smart message logic based on time and context
             const now = new Date();
