@@ -18,7 +18,8 @@ import { Product, Loan, Notebook } from '../types';
 import { cn, formatDate, formatTime, getLocalDateString } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { QRCodeSVG } from 'qrcode.react';
-import { Bell, Copy, Check as CheckIcon } from 'lucide-react';
+import { Bell, Copy, Check as CheckIcon, ShoppingBag, QrCode } from 'lucide-react';
+import { fetchPurchaseRequests } from '../lib/purchasesService';
 
 export function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -26,6 +27,7 @@ export function Dashboard() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [todayRequests, setTodayRequests] = useState<any[]>([]);
   const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
+  const [pendingPurchasesCount, setPendingPurchasesCount] = useState<number>(0);
   const [activeToken, setActiveToken] = useState('initial-portal-access');
   const [isRotating, setIsRotating] = useState(false);
 
@@ -93,6 +95,10 @@ export function Dashboard() {
         if (sRes.data) {
           setTodaySchedules(sRes.data);
         }
+
+        const purchasesData = await fetchPurchaseRequests();
+        const pendingPurchases = purchasesData.filter(p => p.status === 'pending');
+        setPendingPurchasesCount(pendingPurchases.length);
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
       }
@@ -109,6 +115,9 @@ export function Dashboard() {
     const channel = supabase
       .channel('dashboard-realtime-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teacher_requests' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_requests' }, () => {
         fetchData();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => {
@@ -474,76 +483,123 @@ export function Dashboard() {
         </div>
       </div>
       {/* QR Code and Quick Actions Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-12">
-        {/* QR Code Card */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
+        {/* QR Code Card - Professor Portal */}
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-[3rem] border border-slate-200 shadow-xl p-10 flex flex-col items-center text-center group"
+          className="bg-white rounded-[3rem] border border-slate-200 shadow-xl p-8 flex flex-col items-center text-center group"
         >
-          <div className="size-16 bg-sesi-blue/10 text-sesi-blue rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <Bell size={32} />
+          <div className="size-14 bg-sesi-blue/10 text-sesi-blue rounded-3xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+            <Bell size={28} />
           </div>
-          <h3 className="text-xl font-black text-slate-900 tracking-tight mb-2">Portal do Professor</h3>
-          <p className="text-sm text-slate-500 font-medium mb-8">
-            Aponte a câmera para abrir o formulário de solicitações.
+          <h3 className="text-lg font-black text-slate-900 tracking-tight mb-1">Portal do Professor</h3>
+          <p className="text-xs text-slate-500 font-medium mb-6">
+            Aponte a câmera para reservas de notebooks.
           </p>
           
-          <div className="p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 flex items-center justify-center mb-8 shadow-inner">
+          <div className="p-4 bg-slate-50 rounded-[2rem] border-2 border-slate-100 flex items-center justify-center mb-6 shadow-inner">
             <QRCodeSVG 
               value={`${window.location.origin}/r/${activeToken}`} 
-              size={180}
+              size={150}
               level="H"
               includeMargin={false}
               className="rounded-xl"
             />
           </div>
 
-          <div className="w-full space-y-3">
+          <div className="w-full space-y-2.5">
              <button 
                onClick={() => {
                  navigator.clipboard.writeText(`${window.location.origin}/r/${activeToken}`);
                  alert('Link copiado para a área de transferência!');
                }}
-               className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-3 active:scale-95"
+               className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2 active:scale-95"
              >
-               <Copy size={16} />
+               <Copy size={15} />
                Copiar Link
              </button>
              <button 
                onClick={handleRotateToken}
                disabled={isRotating}
-               className="w-full py-4 bg-amber-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+               className="w-full py-3 bg-amber-500 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
              >
                {isRotating ? 'Gerando...' : 'Trocar QR Code'}
              </button>
-             <Link 
-               to={`/r/${activeToken}`} 
-               target="_blank"
-               className="w-full py-4 bg-white text-slate-400 border border-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-3"
+          </div>
+        </motion.div>
+
+        {/* QR Code Card - Compras Portal */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-[3rem] border border-amber-200 shadow-xl p-8 flex flex-col items-center text-center group relative overflow-hidden"
+        >
+          {pendingPurchasesCount > 0 && (
+            <div className="absolute top-0 right-0 px-4 py-1.5 bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-widest rounded-bl-2xl">
+              {pendingPurchasesCount} Pendente{pendingPurchasesCount > 1 ? 's' : ''}
+            </div>
+          )}
+
+          <div className="size-14 bg-amber-500/10 text-amber-600 rounded-3xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+            <ShoppingBag size={28} />
+          </div>
+          <h3 className="text-lg font-black text-slate-900 tracking-tight mb-1">Requisição de Compras</h3>
+          <p className="text-xs text-slate-500 font-medium mb-6">
+            QR Code para solicitar materiais e equipamentos.
+          </p>
+          
+          <div className="p-4 bg-amber-50/50 rounded-[2rem] border-2 border-amber-100 flex items-center justify-center mb-6 shadow-inner">
+            <QRCodeSVG 
+              value={`${window.location.origin}/compras/solicitar`} 
+              size={150}
+              level="H"
+              includeMargin={false}
+              className="rounded-xl"
+            />
+          </div>
+
+          <div className="w-full space-y-2.5">
+             <button 
+               onClick={() => {
+                 navigator.clipboard.writeText(`${window.location.origin}/compras/solicitar`);
+                 alert('Link do formulário de compras copiado com sucesso!');
+               }}
+               className="w-full py-3.5 bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-widest hover:bg-amber-400 transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md shadow-amber-500/20"
              >
-               Ver Site →
+               <Copy size={15} />
+               Copiar Link Compras
+             </button>
+             <Link 
+               to="/compras"
+               className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+             >
+               <ShoppingBag size={15} />
+               Gerenciar Pedidos ({pendingPurchasesCount})
              </Link>
           </div>
         </motion.div>
 
         {/* System Health / Info Card */}
-        <div className="lg:col-span-2 space-y-8 flex flex-col">
-           <div className="bg-slate-900 rounded-[3rem] p-10 flex-1 relative overflow-hidden group">
+        <div className="space-y-6 flex flex-col">
+           <div className="bg-slate-900 rounded-[3rem] p-8 flex-1 relative overflow-hidden group flex flex-col justify-between">
               <div className="absolute -right-20 -top-20 size-64 bg-sesi-blue/20 rounded-full blur-3xl group-hover:bg-sesi-blue/30 transition-all" />
               <div className="relative z-10">
-                <span className="px-4 py-1.5 bg-sesi-blue/20 text-sesi-blue rounded-full text-[10px] font-black uppercase tracking-widest">Dica da Monitoria</span>
-                <h3 className="text-2xl font-black text-white mt-4 leading-tight max-w-xs">
-                  Economize tempo preparando os kits antecipadamente.
+                <span className="px-3 py-1 bg-sesi-blue/20 text-sesi-blue rounded-full text-[10px] font-black uppercase tracking-widest">Controle de Aquisições</span>
+                <h3 className="text-xl font-black text-white mt-4 leading-tight">
+                  Aprovação de Materiais & PDF Oficial com Link
                 </h3>
-                <p className="text-slate-400 text-sm mt-4 leading-relaxed max-w-sm">
-                  Utilize a aba "Solicitações" na página de Empréstimos para ver o que os professores pediram via QR Code.
+                <p className="text-slate-400 text-xs mt-3 leading-relaxed">
+                  Professores solicitam itens com link de referência e justificativa. O Administrador aprova e emite o comprovante PDF de compra.
                 </p>
+              </div>
+
+              <div className="relative z-10 pt-6">
                 <Link 
-                  to="/emprestimos"
-                  className="inline-flex items-center gap-3 mt-8 text-sesi-yellow font-black text-xs uppercase tracking-widest hover:gap-5 transition-all text-sm"
+                  to="/compras"
+                  className="w-full py-3.5 bg-sesi-yellow text-slate-950 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-amber-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-sesi-yellow/20"
                 >
-                  ACESSAR SOLICITAÇÕES <Plus size={18} />
+                  PAINEL DE COMPRAS <ChevronRight size={16} />
                 </Link>
               </div>
            </div>

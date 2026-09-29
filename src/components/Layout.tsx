@@ -17,7 +17,8 @@ import {
   KeyRound,
   Menu,
   X,
-  AlertCircle
+  AlertCircle,
+  ShoppingBag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
@@ -52,6 +53,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   if (user?.role === 'admin') {
+    menuItems.push({ icon: ShoppingBag, label: 'Compras', path: '/compras' });
     menuItems.push({ icon: ShieldCheck, label: 'Gestão de Acesso', path: '/gestao-acesso' });
   }
 

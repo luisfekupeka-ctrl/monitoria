@@ -13,6 +13,8 @@ import { Users } from './pages/Users';
 import { Reports } from './pages/Reports';
 import { AdminManagement } from './pages/AdminManagement';
 import TeacherRequest from './pages/TeacherRequest';
+import { Purchases } from './pages/Purchases';
+import PurchaseFormPublic from './pages/PurchaseFormPublic';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -59,6 +61,8 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/r/:token" element={<TeacherRequest />} />
+              <Route path="/compras/solicitar" element={<PurchaseFormPublic />} />
+              <Route path="/solicitar-compra" element={<PurchaseFormPublic />} />
               
               <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
               <Route path="/estoque" element={<PrivateRoute><Stock /></PrivateRoute>} />
@@ -66,6 +70,7 @@ export default function App() {
               <Route path="/emprestimos" element={<PrivateRoute><Loans /></PrivateRoute>} />
               <Route path="/usuarios" element={<PrivateRoute><Users /></PrivateRoute>} />
               <Route path="/relatorios" element={<PrivateRoute><Reports /></PrivateRoute>} />
+              <Route path="/compras" element={<AdminRoute><Purchases /></AdminRoute>} />
               <Route path="/gestao-acesso" element={<AdminRoute><AdminManagement /></AdminRoute>} />
               
               <Route path="*" element={<Navigate to="/" />} />

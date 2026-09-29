@@ -92,3 +92,29 @@ export interface TeacherRequest {
     name: string;
   };
 }
+
+export type PurchaseStatus = 'pending' | 'approved' | 'rejected'; // pending = 'Em espera', approved = 'Aprovado', rejected = 'Reprovado'
+export type PurchasePriority = 'baixa' | 'normal' | 'alta' | 'urgente';
+
+export interface PurchaseRequest {
+  id: string;
+  requester_name: string;
+  requester_department?: string;
+  requester_contact?: string;
+  item_name: string;
+  quantity: number;
+  unit?: string;
+  reference_link: string;
+  justification: string;
+  technical_specs?: string;
+  estimated_price?: number;
+  priority?: PurchasePriority;
+  status: PurchaseStatus;
+  rejection_reason?: string;
+  approval_notes?: string;
+  approved_by?: string;
+  approved_at?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
