@@ -7,7 +7,7 @@ import { formatDate, formatTime } from './utils';
 
 const LOCAL_STORAGE_KEY = 'sesi_purchases';
 const NOTIFICATION_EMAIL_KEY = 'sesi_purchase_notification_email';
-export const DEFAULT_NOTIFICATION_EMAIL = 'compras@sesi.org.br';
+export const DEFAULT_NOTIFICATION_EMAIL = 'luiskupeka1@gmail.com';
 
 export function getNotificationEmail(): string {
   try {
@@ -142,228 +142,10 @@ export async function fetchPurchaseRequests(): Promise<PurchaseRequest[]> {
   }
 }
 
-export async function createPurchaseRequest(
-  payload: Omit<PurchaseRequest, 'id' | 'status' | 'created_at'>
-): Promise<PurchaseRequest> {
-  const newId = 'req_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-
-  const primaryItem = payload.items?.[0] || {
-    id: 'item-1',
-    name: payload.item_name || 'Material',
-    quantity: payload.quantity || 1,
-    unit: payload.unit || 'un',
-    reference_link: payload.reference_link || '',
-    justification: payload.justification || ''
-  };
-
-  const newRequest: PurchaseRequest = {
-    ...payload,
-    id: newId,
-    status: 'pending',
-    created_at: new Date().toISOString(),
-    priority: payload.priority || 'normal',
-    items: payload.items && payload.items.length > 0 ? payload.items : [primaryItem],
-    item_name: primaryItem.name,
-    quantity: primaryItem.quantity,
-    unit: primaryItem.unit,
-    reference_link: primaryItem.reference_link,
-    justification: primaryItem.justification || payload.justification || '',
-    technical_specs: primaryItem.technical_specs,
-    estimated_price: primaryItem.estimated_price
-  };
-
-  try {
-    const { data, error } = await supabase
-      .from('purchase_requests')
-      .insert([{
-        id: newRequest.id,
-        requester_name: newRequest.requester_name,
-        requester_department: newRequest.requester_department || null,
-        requester_contact: newRequest.requester_contact || null,
-        item_name: newRequest.item_name,
-        quantity: newRequest.quantity,
-        unit: newRequest.unit,
-        reference_link: newRequest.reference_link,
-        justification: newRequest.justification,
-        technical_specs: newRequest.technical_specs || null,
-        estimated_price: newRequest.estimated_price || null,
-        priority: newRequest.priority,
-        items: newRequest.items,
-        status: 'pending',
-        created_at: newRequest.created_at
-      }])
-      .select()
-      .single();
-
-    if (!error && data) {
-      const local = getLocalPurchases();
-      saveLocalPurchases([newRequest, ...local.filter(i => i.id !== newRequest.id)]);
-      return newRequest;
-    }
-  } catch (err) {
-    console.warn('Could not insert to Supabase directly, saving locally:', err);
-  }
-
-  const local = getLocalPurchases();
-  const updated = [newRequest, ...local.filter(i => i.id !== newRequest.id)];
-  saveLocalPurchases(updated);
-  return newRequest;
-}
-
-export async function updatePurchaseStatus(
-  id: string,
-  status: PurchaseStatus,
-  options?: {
-    rejection_reason?: string;
-    approval_notes?: string;
-    approved_by?: string;
-  }
-): Promise<PurchaseRequest | null> {
-  const now = new Date().toISOString();
-  const updatePayload: any = {
-    status,
-    updated_at: now
-  };
-
-  if (status === 'approved') {
-    updatePayload.approved_at = now;
-    updatePayload.approved_by = options?.approved_by || 'Admin';
-    updatePayload.approval_notes = options?.approval_notes || null;
-    updatePayload.rejection_reason = null;
-  } else if (status === 'rejected') {
-    updatePayload.rejection_reason = options?.rejection_reason || 'Não informado';
-    updatePayload.approved_at = null;
-    updatePayload.approved_by = null;
-  } else {
-    updatePayload.approved_at = null;
-    updatePayload.approved_by = null;
-    updatePayload.rejection_reason = null;
-    updatePayload.approval_notes = null;
-  }
-
-  try {
-    const { error } = await supabase
-      .from('purchase_requests')
-      .update(updatePayload)
-      .eq('id', id);
-
-    if (error) {
-      console.warn('Supabase update status failed, updating locally:', error.message);
-    }
-  } catch (err) {
-    console.warn('Supabase update status exception:', err);
-  }
-
-  const local = getLocalPurchases();
-  let updatedItem: PurchaseRequest | null = null;
-  const nextList = local.map(item => {
-    if (item.id === id) {
-      updatedItem = {
-        ...item,
-        ...updatePayload,
-        status
-      };
-      return updatedItem;
-    }
-    return item;
-  });
-
-  saveLocalPurchases(nextList);
-  return updatedItem;
-}
-
-export async function deletePurchaseRequest(id: string): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from('purchase_requests')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.warn('Supabase delete error:', error.message);
-    }
-  } catch (err) {
-    console.warn('Supabase delete exception:', err);
-  }
-
-  const local = getLocalPurchases();
-  saveLocalPurchases(local.filter(i => i.id !== id));
-  return true;
-}
-
-export async function deleteMultiplePurchaseRequests(ids: string[]): Promise<boolean> {
-  if (ids.length === 0) return true;
-  try {
-    await supabase
-      .from('purchase_requests')
-      .delete()
-      .in('id', ids);
-  } catch (err) {
-    console.warn('Supabase bulk delete error:', err);
-  }
-
-  const local = getLocalPurchases();
-  saveLocalPurchases(local.filter(i => !ids.includes(i.id)));
-  return true;
-}
-
-export function generatePurchaseEmailData(req: PurchaseRequest, targetEmail?: string) {
-  const normalized = normalizePurchaseRequest(req);
-  const items = normalized.items;
-  const destination = targetEmail || getNotificationEmail();
-
-  const totalEstimatedCost = items.reduce(
-    (acc, it) => acc + ((it.estimated_price || 0) * (it.quantity || 1)), 
-    0
-  );
-
-  const subject = `[SOLICITAÇÃO DE COMPRAS SESI] Protocolo #${normalized.id.slice(0, 10).toUpperCase()} - ${normalized.requester_department} (${normalized.requester_name})`;
-
-  const bodyLines = [
-    `Prezados(as) / Setor Administrativo e de Compras,`,
-    ``,
-    `Uma nova solicitação de compra de materiais foi registrada no Portal de Monitoria SESI:`,
-    ``,
-    `========================================`,
-    `📋 DADOS DA REQUISIÇÃO`,
-    `========================================`,
-    `• Protocolo: #${normalized.id.slice(0, 10).toUpperCase()}`,
-    `• Solicitante: ${normalized.requester_name}`,
-    `• Departamento / Setor: ${normalized.requester_department}`,
-    `• Contato / WhatsApp: ${normalized.requester_contact || 'Não informado'}`,
-    `• Prioridade: ${(normalized.priority || 'normal').toUpperCase()}`,
-    `• Data da Solicitação: ${formatDate(normalized.created_at)} às ${formatTime(normalized.created_at)}`,
-    `• Status Atual: EM ESPERA (Aguardando homologação da administração)`,
-    ``,
-    `========================================`,
-    `📦 ITENS SOLICITADOS (${items.length})`,
-    `========================================`,
-    ...items.map((it, idx) => [
-      `ITEM #${idx + 1}: ${it.name}`,
-      `   • Quantidade: ${it.quantity} ${it.unit || 'un'}`,
-      `   • Valor Estimado Unitário: ${it.estimated_price ? 'R$ ' + Number(it.estimated_price).toFixed(2).replace('.', ',') : 'A cotar'}`,
-      `   • Link do Produto: ${it.reference_link}`,
-      `   • Justificativa: ${it.justification}`,
-      it.technical_specs ? `   • Especificação Técnica: ${it.technical_specs}` : null,
-      ``
-    ].filter(Boolean).join('\n')),
-    `========================================`,
-    `💰 Total Estimado do Pedido: ${totalEstimatedCost > 0 ? 'R$ ' + totalEstimatedCost.toFixed(2).replace('.', ',') : 'A cotar'}`,
-    `========================================`,
-    ``,
-    `O documento oficial em PDF desta solicitação foi gerado pelo sistema.`,
-    `Para visualizar, aprovar ou homologar, acesse o painel da Monitoria SESI.`
-  ];
-
-  const body = bodyLines.join('\n');
-  const mailtoUrl = `mailto:${encodeURIComponent(destination)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(destination)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  const whatsAppUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent('*SOLICITAÇÃO DE COMPRAS SESI*\nProtocolo: #' + normalized.id.slice(0, 10).toUpperCase() + '\nSolicitante: ' + normalized.requester_name + ' (' + normalized.requester_department + ')\nItens: ' + items.length + ' item(ns)\nTotal Est.: ' + (totalEstimatedCost > 0 ? 'R$ ' + totalEstimatedCost.toFixed(2).replace('.', ',') : 'A cotar') + '\n\nAcesse o painel para verificar os detalhes e aprovação.')}`;
-
-  return { subject, body, destination, mailtoUrl, gmailUrl, whatsAppUrl };
-}
-
-export function generatePurchasePDF(req: PurchaseRequest) {
+/**
+ * Generates PDF object / base64 string
+ */
+export function buildPurchasePDFDoc(req: PurchaseRequest): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const normalized = normalizePurchaseRequest(req);
   const items = normalized.items;
@@ -530,8 +312,262 @@ export function generatePurchasePDF(req: PurchaseRequest) {
   doc.setTextColor(100, 116, 139);
   doc.text('SESI Escola Internacional', pageWidth - margin - 37.5, currentY + 7.5, { align: 'center' });
 
+  return doc;
+}
+
+export function generatePurchasePDF(req: PurchaseRequest) {
+  const doc = buildPurchasePDFDoc(req);
+  const normalized = normalizePurchaseRequest(req);
   const cleanName = (normalized.requester_name || 'solicitacao').replace(/[^a-zA-Z0-9]/g, '_');
   doc.save(`SESI_Solicitacao_Compra_${cleanName}_${normalized.id.slice(0, 8)}.pdf`);
+}
+
+/**
+ * Create a new multi-item purchase request AND dispatch automated email with PDF to luiskupeka1@gmail.com
+ */
+export async function createPurchaseRequest(
+  payload: Omit<PurchaseRequest, 'id' | 'status' | 'created_at'>
+): Promise<PurchaseRequest> {
+  const newId = 'req_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+
+  const primaryItem = payload.items?.[0] || {
+    id: 'item-1',
+    name: payload.item_name || 'Material',
+    quantity: payload.quantity || 1,
+    unit: payload.unit || 'un',
+    reference_link: payload.reference_link || '',
+    justification: payload.justification || ''
+  };
+
+  const newRequest: PurchaseRequest = {
+    ...payload,
+    id: newId,
+    status: 'pending',
+    created_at: new Date().toISOString(),
+    priority: payload.priority || 'normal',
+    items: payload.items && payload.items.length > 0 ? payload.items : [primaryItem],
+    item_name: primaryItem.name,
+    quantity: primaryItem.quantity,
+    unit: primaryItem.unit,
+    reference_link: primaryItem.reference_link,
+    justification: primaryItem.justification || payload.justification || '',
+    technical_specs: primaryItem.technical_specs,
+    estimated_price: primaryItem.estimated_price
+  };
+
+  // 1. Insert into Supabase
+  try {
+    const { data, error } = await supabase
+      .from('purchase_requests')
+      .insert([{
+        id: newRequest.id,
+        requester_name: newRequest.requester_name,
+        requester_department: newRequest.requester_department || null,
+        requester_contact: newRequest.requester_contact || null,
+        item_name: newRequest.item_name,
+        quantity: newRequest.quantity,
+        unit: newRequest.unit,
+        reference_link: newRequest.reference_link,
+        justification: newRequest.justification,
+        technical_specs: newRequest.technical_specs || null,
+        estimated_price: newRequest.estimated_price || null,
+        priority: newRequest.priority,
+        items: newRequest.items,
+        status: 'pending',
+        created_at: newRequest.created_at
+      }])
+      .select()
+      .single();
+
+    if (!error && data) {
+      const local = getLocalPurchases();
+      saveLocalPurchases([newRequest, ...local.filter(i => i.id !== newRequest.id)]);
+    }
+  } catch (err) {
+    console.warn('Could not insert to Supabase directly, saving locally:', err);
+  }
+
+  // 2. Local cache fallback
+  const local = getLocalPurchases();
+  const updated = [newRequest, ...local.filter(i => i.id !== newRequest.id)];
+  saveLocalPurchases(updated);
+
+  // 3. Dispatch automated email with PDF to luiskupeka1@gmail.com in background
+  try {
+    const pdfDoc = buildPurchasePDFDoc(newRequest);
+    const pdfBase64 = pdfDoc.output('datauristring');
+
+    supabase.functions.invoke('send-purchase-email', {
+      body: {
+        request: newRequest,
+        pdf_base64: pdfBase64,
+        destination_email: 'luiskupeka1@gmail.com'
+      }
+    }).then(({ data, error }) => {
+      if (error) {
+        console.warn('send-purchase-email warning:', error);
+      } else {
+        console.log('Automated purchase email sent successfully to luiskupeka1@gmail.com:', data);
+      }
+    }).catch(e => console.warn('Email dispatch catch:', e));
+  } catch (emailErr) {
+    console.warn('Failed to build PDF or dispatch email:', emailErr);
+  }
+
+  return newRequest;
+}
+
+export async function updatePurchaseStatus(
+  id: string,
+  status: PurchaseStatus,
+  options?: {
+    rejection_reason?: string;
+    approval_notes?: string;
+    approved_by?: string;
+  }
+): Promise<PurchaseRequest | null> {
+  const now = new Date().toISOString();
+  const updatePayload: any = {
+    status,
+    updated_at: now
+  };
+
+  if (status === 'approved') {
+    updatePayload.approved_at = now;
+    updatePayload.approved_by = options?.approved_by || 'Admin';
+    updatePayload.approval_notes = options?.approval_notes || null;
+    updatePayload.rejection_reason = null;
+  } else if (status === 'rejected') {
+    updatePayload.rejection_reason = options?.rejection_reason || 'Não informado';
+    updatePayload.approved_at = null;
+    updatePayload.approved_by = null;
+  } else {
+    updatePayload.approved_at = null;
+    updatePayload.approved_by = null;
+    updatePayload.rejection_reason = null;
+    updatePayload.approval_notes = null;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('purchase_requests')
+      .update(updatePayload)
+      .eq('id', id);
+
+    if (error) {
+      console.warn('Supabase update status failed, updating locally:', error.message);
+    }
+  } catch (err) {
+    console.warn('Supabase update status exception:', err);
+  }
+
+  const local = getLocalPurchases();
+  let updatedItem: PurchaseRequest | null = null;
+  const nextList = local.map(item => {
+    if (item.id === id) {
+      updatedItem = {
+        ...item,
+        ...updatePayload,
+        status
+      };
+      return updatedItem;
+    }
+    return item;
+  });
+
+  saveLocalPurchases(nextList);
+  return updatedItem;
+}
+
+export async function deletePurchaseRequest(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('purchase_requests')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.warn('Supabase delete error:', error.message);
+    }
+  } catch (err) {
+    console.warn('Supabase delete exception:', err);
+  }
+
+  const local = getLocalPurchases();
+  saveLocalPurchases(local.filter(i => i.id !== id));
+  return true;
+}
+
+export async function deleteMultiplePurchaseRequests(ids: string[]): Promise<boolean> {
+  if (ids.length === 0) return true;
+  try {
+    await supabase
+      .from('purchase_requests')
+      .delete()
+      .in('id', ids);
+  } catch (err) {
+    console.warn('Supabase bulk delete error:', err);
+  }
+
+  const local = getLocalPurchases();
+  saveLocalPurchases(local.filter(i => !ids.includes(i.id)));
+  return true;
+}
+
+export function generatePurchaseEmailData(req: PurchaseRequest, targetEmail?: string) {
+  const normalized = normalizePurchaseRequest(req);
+  const items = normalized.items;
+  const destination = targetEmail || getNotificationEmail();
+
+  const totalEstimatedCost = items.reduce(
+    (acc, it) => acc + ((it.estimated_price || 0) * (it.quantity || 1)), 
+    0
+  );
+
+  const subject = `[SOLICITAÇÃO DE COMPRAS SESI] Protocolo #${normalized.id.slice(0, 10).toUpperCase()} - ${normalized.requester_department} (${normalized.requester_name})`;
+
+  const bodyLines = [
+    `Prezados(as) / Setor Administrativo e de Compras,`,
+    ``,
+    `Uma nova solicitação de compra de materiais foi registrada no Portal de Monitoria SESI:`,
+    ``,
+    `========================================`,
+    `📋 DADOS DA REQUISIÇÃO`,
+    `========================================`,
+    `• Protocolo: #${normalized.id.slice(0, 10).toUpperCase()}`,
+    `• Solicitante: ${normalized.requester_name}`,
+    `• Departamento / Setor: ${normalized.requester_department}`,
+    `• Contato / WhatsApp: ${normalized.requester_contact || 'Não informado'}`,
+    `• Prioridade: ${(normalized.priority || 'normal').toUpperCase()}`,
+    `• Data da Solicitação: ${formatDate(normalized.created_at)} às ${formatTime(normalized.created_at)}`,
+    `• Status Atual: EM ESPERA (Aguardando homologação da administração)`,
+    ``,
+    `========================================`,
+    `📦 ITENS SOLICITADOS (${items.length})`,
+    `========================================`,
+    ...items.map((it, idx) => [
+      `ITEM #${idx + 1}: ${it.name}`,
+      `   • Quantidade: ${it.quantity} ${it.unit || 'un'}`,
+      `   • Valor Estimado Unitário: ${it.estimated_price ? 'R$ ' + Number(it.estimated_price).toFixed(2).replace('.', ',') : 'A cotar'}`,
+      `   • Link do Produto: ${it.reference_link}`,
+      `   • Justificativa: ${it.justification}`,
+      it.technical_specs ? `   • Especificação Técnica: ${it.technical_specs}` : null,
+      ``
+    ].filter(Boolean).join('\n')),
+    `========================================`,
+    `💰 Total Estimado do Pedido: ${totalEstimatedCost > 0 ? 'R$ ' + totalEstimatedCost.toFixed(2).replace('.', ',') : 'A cotar'}`,
+    `========================================`,
+    ``,
+    `O documento oficial em PDF desta solicitação foi gerado pelo sistema.`,
+    `Para visualizar, aprovar ou homologar, acesse o painel da Monitoria SESI.`
+  ];
+
+  const body = bodyLines.join('\n');
+  const mailtoUrl = `mailto:${encodeURIComponent(destination)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(destination)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const whatsAppUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent('*SOLICITAÇÃO DE COMPRAS SESI*\nProtocolo: #' + normalized.id.slice(0, 10).toUpperCase() + '\nSolicitante: ' + normalized.requester_name + ' (' + normalized.requester_department + ')\nItens: ' + items.length + ' item(ns)\nTotal Est.: ' + (totalEstimatedCost > 0 ? 'R$ ' + totalEstimatedCost.toFixed(2).replace('.', ',') : 'A cotar') + '\n\nAcesse o painel para verificar os detalhes e aprovação.')}`;
+
+  return { subject, body, destination, mailtoUrl, gmailUrl, whatsAppUrl };
 }
 
 export function generatePurchaseDoc(req: PurchaseRequest) {
