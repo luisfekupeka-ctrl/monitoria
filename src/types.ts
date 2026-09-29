@@ -102,6 +102,7 @@ export interface PurchaseItem {
   quantity: number;
   unit?: string;
   reference_link: string;
+  justification: string; // Justificativa específica por item
   estimated_price?: number;
   has_technical_specs?: boolean;
   technical_specs?: string;
@@ -110,9 +111,9 @@ export interface PurchaseItem {
 export interface PurchaseRequest {
   id: string;
   requester_name: string;
-  requester_department?: string;
+  requester_department?: string; // Coordenação, Robótica, Biblioteca, etc.
   requester_contact?: string;
-  justification: string;
+  justification?: string;
   priority?: PurchasePriority;
   items: PurchaseItem[];
   // Legacy / convenience single item fields:

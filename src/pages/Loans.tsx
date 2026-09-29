@@ -863,23 +863,24 @@ export function Loans() {
       const now = new Date();
       const todayStr = getLocalDateString(now);
       const isScheduledNow = schedules.some(s => {
-        if (s.status !== 'pending') return false;
-        const start = new Date(s.start_time);
-        const deadline = s.return_deadline ? new Date(`${todayStr}T${s.return_deadline}`) : null;
-        
-        // Simple check: if scheduled today and start <= now, and (no deadline or now < deadline)
+        if (!s || s.status !== 'pending') return false;
         const isToday = s.scheduled_date === todayStr;
         if (!isToday) return false;
+
+        const timeStr = s.start_time?.includes('T') ? s.start_time : `${todayStr}T${s.start_time}`;
+        const start = new Date(timeStr);
+        const deadline = s.return_deadline ? new Date(`${todayStr}T${s.return_deadline}`) : null;
         
-        const isAfterStart = now >= start;
-        const isBeforeEnd = deadline ? now < deadline : true;
+        const isAfterStart = !isNaN(start.getTime()) ? now >= start : true;
+        const isBeforeEnd = deadline && !isNaN(deadline.getTime()) ? now < deadline : true;
+        const eqCodes: string[] = Array.isArray(s.equipment_codes) ? s.equipment_codes : [];
         
-        return isAfterStart && isBeforeEnd && s.equipment_codes.includes(n.code);
+        return isAfterStart && isBeforeEnd && eqCodes.includes(n.code);
       });
       
       return !isScheduledNow;
     })
-    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    .sort((a, b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true }));
 
   return (
     <motion.div 
