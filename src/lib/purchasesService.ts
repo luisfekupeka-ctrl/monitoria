@@ -2,17 +2,78 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { supabase } from './supabase';
-import { PurchaseRequest, PurchaseStatus } from '../types';
+import { PurchaseRequest, PurchaseItem, PurchaseStatus } from '../types';
 import { formatDate, formatTime } from './utils';
 
 const LOCAL_STORAGE_KEY = 'sesi_purchases';
+
+// Normalize any purchase request to ensure items array is populated
+export function normalizePurchaseRequest(raw: any): PurchaseRequest {
+  let items: PurchaseItem[] = [];
+
+  if (raw.items) {
+    if (typeof raw.items === 'string') {
+      try {
+        items = JSON.parse(raw.items);
+      } catch {
+        items = [];
+      }
+    } else if (Array.isArray(raw.items)) {
+      items = raw.items;
+    }
+  }
+
+  // Fallback for legacy single-item format
+  if (!items || items.length === 0) {
+    if (raw.item_name) {
+      items = [{
+        id: 'item-1',
+        name: raw.item_name,
+        quantity: Number(raw.quantity) || 1,
+        unit: raw.unit || 'un',
+        reference_link: raw.reference_link || '',
+        estimated_price: raw.estimated_price ? Number(raw.estimated_price) : undefined,
+        has_technical_specs: !!(raw.technical_specs && raw.technical_specs.trim()),
+        technical_specs: raw.technical_specs || ''
+      }];
+    }
+  }
+
+  const primaryItem = items[0] || { name: 'Item', quantity: 1, unit: 'un', reference_link: '' };
+
+  return {
+    id: raw.id,
+    requester_name: raw.requester_name || 'Anônimo',
+    requester_department: raw.requester_department || '',
+    requester_contact: raw.requester_contact || '',
+    justification: raw.justification || '',
+    priority: raw.priority || 'normal',
+    items: items,
+    // Convenience / legacy access
+    item_name: primaryItem.name,
+    quantity: primaryItem.quantity,
+    unit: primaryItem.unit,
+    reference_link: primaryItem.reference_link,
+    technical_specs: primaryItem.technical_specs,
+    estimated_price: primaryItem.estimated_price,
+    status: (raw.status as PurchaseStatus) || 'pending',
+    rejection_reason: raw.rejection_reason || '',
+    approval_notes: raw.approval_notes || '',
+    approved_by: raw.approved_by || '',
+    approved_at: raw.approved_at || undefined,
+    created_at: raw.created_at || new Date().toISOString(),
+    updated_at: raw.updated_at || undefined
+  };
+}
 
 // Helper to get local purchases cache
 function getLocalPurchases(): PurchaseRequest[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizePurchaseRequest);
   } catch (err) {
     console.error('Error reading local purchases:', err);
     return [];
@@ -44,28 +105,7 @@ export async function fetchPurchaseRequests(): Promise<PurchaseRequest[]> {
     }
 
     if (data && Array.isArray(data)) {
-      const formatted: PurchaseRequest[] = data.map((item: any) => ({
-        id: item.id,
-        requester_name: item.requester_name || 'Anônimo',
-        requester_department: item.requester_department || '',
-        requester_contact: item.requester_contact || '',
-        item_name: item.item_name || '',
-        quantity: Number(item.quantity) || 1,
-        unit: item.unit || 'un',
-        reference_link: item.reference_link || '',
-        justification: item.justification || '',
-        technical_specs: item.technical_specs || '',
-        estimated_price: item.estimated_price ? Number(item.estimated_price) : undefined,
-        priority: item.priority || 'normal',
-        status: (item.status as PurchaseStatus) || 'pending',
-        rejection_reason: item.rejection_reason || '',
-        approval_notes: item.approval_notes || '',
-        approved_by: item.approved_by || '',
-        approved_at: item.approved_at || undefined,
-        created_at: item.created_at || new Date().toISOString(),
-        updated_at: item.updated_at || undefined
-      }));
-
+      const formatted = data.map(normalizePurchaseRequest);
       saveLocalPurchases(formatted);
       return formatted;
     }
@@ -77,7 +117,7 @@ export async function fetchPurchaseRequests(): Promise<PurchaseRequest[]> {
 }
 
 /**
- * Create a new purchase request
+ * Create a new multi-item purchase request
  */
 export async function createPurchaseRequest(
   payload: Omit<PurchaseRequest, 'id' | 'status' | 'created_at'>
@@ -86,14 +126,27 @@ export async function createPurchaseRequest(
     ? crypto.randomUUID() 
     : 'req-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7);
 
+  const primaryItem = payload.items?.[0] || {
+    id: 'item-1',
+    name: payload.item_name || 'Material',
+    quantity: payload.quantity || 1,
+    unit: payload.unit || 'un',
+    reference_link: payload.reference_link || ''
+  };
+
   const newRequest: PurchaseRequest = {
     ...payload,
     id: newId,
     status: 'pending',
     created_at: new Date().toISOString(),
-    quantity: Number(payload.quantity) || 1,
-    unit: payload.unit || 'un',
-    priority: payload.priority || 'normal'
+    priority: payload.priority || 'normal',
+    items: payload.items && payload.items.length > 0 ? payload.items : [primaryItem],
+    item_name: primaryItem.name,
+    quantity: primaryItem.quantity,
+    unit: primaryItem.unit,
+    reference_link: primaryItem.reference_link,
+    technical_specs: primaryItem.technical_specs,
+    estimated_price: primaryItem.estimated_price
   };
 
   // Try inserting into Supabase
@@ -113,6 +166,7 @@ export async function createPurchaseRequest(
         technical_specs: newRequest.technical_specs || null,
         estimated_price: newRequest.estimated_price || null,
         priority: newRequest.priority,
+        items: newRequest.items, // JSON array
         status: 'pending',
         created_at: newRequest.created_at
       }])
@@ -163,7 +217,6 @@ export async function updatePurchaseStatus(
     updatePayload.approved_at = null;
     updatePayload.approved_by = null;
   } else {
-    // Reset to pending
     updatePayload.approved_at = null;
     updatePayload.approved_by = null;
     updatePayload.rejection_reason = null;
@@ -244,7 +297,7 @@ export async function deleteMultiplePurchaseRequests(ids: string[]): Promise<boo
 }
 
 /**
- * Generate official Purchase Authorization PDF with clickable reference link
+ * Generate structured multi-item Purchase Authorization PDF with clickable reference links
  */
 export function generatePurchasePDF(req: PurchaseRequest) {
   const doc = new jsPDF({
@@ -253,6 +306,17 @@ export function generatePurchasePDF(req: PurchaseRequest) {
     format: 'a4'
   });
 
+  const normalized = normalizePurchaseRequest(req);
+  const items = normalized.items && normalized.items.length > 0 ? normalized.items : [{
+    id: '1',
+    name: normalized.item_name || 'Material',
+    quantity: normalized.quantity || 1,
+    unit: normalized.unit || 'un',
+    reference_link: normalized.reference_link || '',
+    technical_specs: normalized.technical_specs || '',
+    estimated_price: normalized.estimated_price
+  }];
+
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 14;
@@ -260,57 +324,59 @@ export function generatePurchasePDF(req: PurchaseRequest) {
 
   // Header Banner
   doc.setFillColor(15, 76, 129); // SESI Deep Blue
-  doc.rect(0, 0, pageWidth, 28, 'F');
+  doc.rect(0, 0, pageWidth, 26, 'F');
 
-  // Yellow Accent Line
+  // Gold Accent Line
   doc.setFillColor(245, 158, 11); // SESI Yellow
-  doc.rect(0, 28, pageWidth, 2.5, 'F');
+  doc.rect(0, 26, pageWidth, 2.5, 'F');
 
   // Header Text
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text('SESI - SERVIÇO SOCIAL DA INDÚSTRIA', margin, 12);
+  doc.setFontSize(13);
+  doc.text('SESI - SERVIÇO SOCIAL DA INDÚSTRIA', margin, 11);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text('MONITORIA & GESTÃO DE ATIVOS • CONTROLE DE AQUISIÇÕES', margin, 18);
+  doc.setFontSize(8.5);
+  doc.text('MONITORIA & GESTÃO DE ATIVOS • REQUISIÇÃO OFICIAL DE COMPRAS', margin, 17);
 
   // Status Badge in Header
-  const statusLabel = req.status === 'approved' 
+  const statusLabel = normalized.status === 'approved' 
     ? 'APROVADO' 
-    : req.status === 'rejected' 
+    : normalized.status === 'rejected' 
       ? 'REPROVADO' 
       : 'EM ESPERA';
   
-  const statusBgColor = req.status === 'approved' 
+  const statusBgColor = normalized.status === 'approved' 
     ? [16, 185, 129] // Emerald
-    : req.status === 'rejected' 
+    : normalized.status === 'rejected' 
       ? [239, 68, 68] // Rose
       : [245, 158, 11]; // Amber
 
   doc.setFillColor(statusBgColor[0], statusBgColor[1], statusBgColor[2]);
-  doc.roundedRect(pageWidth - margin - 35, 8, 35, 11, 2, 2, 'F');
+  doc.roundedRect(pageWidth - margin - 35, 7, 35, 11, 2, 2, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text(statusLabel, pageWidth - margin - 17.5, 15.5, { align: 'center' });
+  doc.text(statusLabel, pageWidth - margin - 17.5, 14.5, { align: 'center' });
 
   // Title
   doc.setTextColor(15, 23, 42); // Slate 900
-  doc.setFontSize(15);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  let currentY = 40;
-  doc.text('SOLICITAÇÃO DE COMPRA DE MATERIAL', margin, currentY);
+  let currentY = 36;
+  doc.text('ORDEM DE REQUISIÇÃO DE COMPRA DE MATERIAIS', margin, currentY);
 
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139);
-  currentY += 6;
-  doc.text(`Protocolo: #${req.id.slice(0, 12).toUpperCase()} • Emitido em: ${formatDate(new Date())} às ${formatTime(new Date())}`, margin, currentY);
+  currentY += 5;
+  doc.text(`Protocolo: #${normalized.id.slice(0, 12).toUpperCase()} • Solicitado em: ${formatDate(normalized.created_at)} às ${formatTime(normalized.created_at)}`, margin, currentY);
 
   // Solicitante Information Table
-  currentY += 6;
+  currentY += 5;
+  const totalEstimatedCost = items.reduce((acc, it) => acc + ((it.estimated_price || 0) * (it.quantity || 1)), 0);
+
   autoTable(doc, {
     startY: currentY,
     margin: { left: margin, right: margin },
@@ -319,26 +385,63 @@ export function generatePurchasePDF(req: PurchaseRequest) {
       fillColor: [241, 245, 249],
       textColor: [51, 65, 85],
       fontStyle: 'bold',
-      fontSize: 9,
-      cellPadding: 3
+      fontSize: 8.5,
+      cellPadding: 2.5
     },
     bodyStyles: {
       textColor: [15, 23, 42],
-      fontSize: 8.5,
-      cellPadding: 3.5
+      fontSize: 8,
+      cellPadding: 3
     },
-    head: [['Dados do Solicitante', 'Detalhes do Pedido']],
+    head: [['Dados do Solicitante', 'Resumo da Requisição']],
     body: [
       [
-        `Nome: ${req.requester_name || 'N/A'}\nSetor/Depto: ${req.requester_department || 'Não informado'}\nContato: ${req.requester_contact || 'Não informado'}`,
-        `Data da Solicitação: ${formatDate(req.created_at)} (${formatTime(req.created_at)})\nPrioridade: ${(req.priority || 'Normal').toUpperCase()}\nValor Estimado: ${req.estimated_price ? `R$ ${Number(req.estimated_price).toFixed(2).replace('.', ',')}` : 'A cotar'}`
+        `Nome: ${normalized.requester_name || 'N/A'}\nSetor/Depto: ${normalized.requester_department || 'Não informado'}\nContato: ${normalized.requester_contact || 'Não informado'}`,
+        `Qtd. Total de Itens: ${items.length} item(ns)\nPrioridade: ${(normalized.priority || 'Normal').toUpperCase()}\nTotal Estimado: ${totalEstimatedCost > 0 ? `R$ ${totalEstimatedCost.toFixed(2).replace('.', ',')}` : 'A cotar'}`
       ]
     ]
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 6;
+  currentY = (doc as any).lastAutoTable.finalY + 4;
 
-  // Item Details Table
+  // Justification Section Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, currentY, contentWidth, 18, 1.5, 1.5, 'FD');
+
+  doc.setTextColor(15, 76, 129);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('JUSTIFICATIVA GERAL DA NECESSIDADE:', margin + 3, currentY + 4.5);
+
+  doc.setTextColor(51, 65, 85);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  const splitJustification = doc.splitTextToSize(normalized.justification || 'Nenhuma justificativa informada.', contentWidth - 6);
+  doc.text(splitJustification, margin + 3, currentY + 9);
+
+  currentY += 22;
+
+  // Items Table (with clickable reference links in cells)
+  const tableData = items.map((it, idx) => {
+    const priceStr = it.estimated_price 
+      ? `R$ ${Number(it.estimated_price).toFixed(2).replace('.', ',')}` 
+      : '-';
+    
+    const specsStr = it.technical_specs && it.technical_specs.trim() 
+      ? it.technical_specs.trim() 
+      : 'Padrão / Conforme link';
+
+    return [
+      (idx + 1).toString(),
+      it.name,
+      `${it.quantity} ${it.unit || 'un'}`,
+      priceStr,
+      it.reference_link || '-',
+      specsStr
+    ];
+  });
+
   autoTable(doc, {
     startY: currentY,
     margin: { left: margin, right: margin },
@@ -347,161 +450,134 @@ export function generatePurchasePDF(req: PurchaseRequest) {
       fillColor: [15, 76, 129],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 9
+      fontSize: 8,
+      cellPadding: 3
     },
     bodyStyles: {
-      fontSize: 9,
-      textColor: [30, 41, 59]
+      fontSize: 7.5,
+      textColor: [30, 41, 59],
+      cellPadding: 3
     },
-    head: [['Item / Equipamento / Material', 'Quantidade', 'Unidade', 'Prioridade']],
-    body: [
-      [
-        req.item_name,
-        req.quantity.toString(),
-        req.unit || 'un',
-        (req.priority || 'Normal').toUpperCase()
-      ]
-    ]
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 42, fontStyle: 'bold' },
+      2: { cellWidth: 16, halign: 'center' },
+      3: { cellWidth: 20, halign: 'right' },
+      4: { cellWidth: 50 },
+      5: { cellWidth: 'auto' }
+    },
+    head: [['#', 'Item / Descrição', 'Qtd', 'Valor Est.', 'Link de Referência (Clique)', 'Especificações Técnicas']],
+    body: tableData,
+    didDrawCell: (data) => {
+      // If column is the Reference Link (index 4) and row is body row, add interactive hyperlink
+      if (data.column.index === 4 && data.section === 'body') {
+        const itemIdx = data.row.index;
+        const linkUrl = items[itemIdx]?.reference_link;
+        if (linkUrl && /^https?:\/\//i.test(linkUrl)) {
+          doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url: linkUrl });
+        }
+      }
+    },
+    willDrawCell: (data) => {
+      // Style link in blue
+      if (data.column.index === 4 && data.section === 'body') {
+        doc.setTextColor(37, 99, 235);
+      }
+    }
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 8;
+  currentY = (doc as any).lastAutoTable.finalY + 6;
 
-  // Justification Section Box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, currentY, contentWidth, 26, 2, 2, 'FD');
-
-  doc.setTextColor(15, 76, 129);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('JUSTIFICATIVA DA NECESSIDADE:', margin + 4, currentY + 6);
-
-  doc.setTextColor(51, 65, 85);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  const splitJustification = doc.splitTextToSize(req.justification || 'Nenhuma justificativa informada.', contentWidth - 8);
-  doc.text(splitJustification, margin + 4, currentY + 12);
-
-  currentY += 32;
-
-  // Technical Specs Box
-  if (req.technical_specs && req.technical_specs.trim()) {
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(margin, currentY, contentWidth, 24, 2, 2, 'FD');
-
-    doc.setTextColor(15, 76, 129);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('OBSERVAÇÕES E ESPECIFICAÇÕES TÉCNICAS:', margin + 4, currentY + 6);
-
-    doc.setTextColor(51, 65, 85);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    const splitSpecs = doc.splitTextToSize(req.technical_specs, contentWidth - 8);
-    doc.text(splitSpecs, margin + 4, currentY + 12);
-
-    currentY += 30;
+  // Check if we need a new page for approval section
+  if (currentY > pageHeight - 50) {
+    doc.addPage();
+    currentY = 20;
   }
 
-  // Reference Link Section (Interactive Clickable Link)
-  doc.setFillColor(239, 246, 255); // Light Blue BG
-  doc.setDrawColor(191, 219, 254); // Blue border
-  doc.roundedRect(margin, currentY, contentWidth, 24, 2, 2, 'FD');
-
-  doc.setTextColor(30, 64, 175);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('LINK DE REFERÊNCIA / PRODUTO (CLIQUE PARA ABRIR):', margin + 4, currentY + 6);
-
-  const cleanUrl = req.reference_link || 'https://';
-  doc.setTextColor(37, 99, 235);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  
-  // Truncate or split long url visually but keep link functional
-  const displayUrl = cleanUrl.length > 90 ? cleanUrl.substring(0, 87) + '...' : cleanUrl;
-  doc.textWithLink(displayUrl, margin + 4, currentY + 14, { url: cleanUrl });
-  
-  // Underline
-  doc.setDrawColor(37, 99, 235);
-  doc.setLineWidth(0.2);
-  const textWidth = Math.min(doc.getTextWidth(displayUrl), contentWidth - 8);
-  doc.line(margin + 4, currentY + 15, margin + 4 + textWidth, currentY + 15);
-
-  currentY += 32;
-
-  // Approval / Signature Section
-  if (req.status === 'approved') {
+  // Approval / Status section
+  if (normalized.status === 'approved') {
     doc.setFillColor(236, 253, 245); // Emerald bg
     doc.setDrawColor(167, 243, 208);
-    doc.roundedRect(margin, currentY, contentWidth, 26, 2, 2, 'FD');
+    doc.roundedRect(margin, currentY, contentWidth, 20, 1.5, 1.5, 'FD');
 
     doc.setTextColor(6, 95, 70);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.text('AUTORIZAÇÃO DA ADMINISTRAÇÃO SESI', margin + 4, currentY + 7);
+    doc.setFontSize(8.5);
+    doc.text('AUTORIZAÇÃO DA ADMINISTRAÇÃO SESI', margin + 3, currentY + 5.5);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
+    doc.setFontSize(7.5);
     doc.setTextColor(4, 120, 87);
-    const approvedDateStr = req.approved_at ? `${formatDate(req.approved_at)} às ${formatTime(req.approved_at)}` : formatDate(new Date());
-    doc.text(`Aprovado por: ${req.approved_by || 'Administrador'} em ${approvedDateStr}`, margin + 4, currentY + 14);
-    if (req.approval_notes) {
-      doc.text(`Observações do Administrador: "${req.approval_notes}"`, margin + 4, currentY + 20);
+    const approvedDateStr = normalized.approved_at ? `${formatDate(normalized.approved_at)} às ${formatTime(normalized.approved_at)}` : formatDate(new Date());
+    doc.text(`Aprovado por: ${normalized.approved_by || 'Administrador'} em ${approvedDateStr}`, margin + 3, currentY + 11);
+    if (normalized.approval_notes) {
+      doc.text(`Orientações: "${normalized.approval_notes}"`, margin + 3, currentY + 16);
     }
 
-    currentY += 34;
-  } else if (req.status === 'rejected') {
+    currentY += 26;
+  } else if (normalized.status === 'rejected') {
     doc.setFillColor(254, 242, 242);
     doc.setDrawColor(254, 202, 202);
-    doc.roundedRect(margin, currentY, contentWidth, 22, 2, 2, 'FD');
+    doc.roundedRect(margin, currentY, contentWidth, 18, 1.5, 1.5, 'FD');
 
     doc.setTextColor(153, 27, 27);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.text('SOLICITAÇÃO REPROVADA PELA ADMINISTRAÇÃO', margin + 4, currentY + 7);
+    doc.setFontSize(8.5);
+    doc.text('SOLICITAÇÃO REPROVADA PELA ADMINISTRAÇÃO', margin + 3, currentY + 5.5);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
+    doc.setFontSize(7.5);
     doc.setTextColor(185, 28, 28);
-    doc.text(`Motivo da Rejeição: ${req.rejection_reason || 'Item não aprovado para compra no momento.'}`, margin + 4, currentY + 14);
+    doc.text(`Motivo da Reprovação: ${normalized.rejection_reason || 'Item não autorizado para aquisição.'}`, margin + 3, currentY + 11);
 
-    currentY += 28;
+    currentY += 24;
   }
 
   // Signature lines at bottom
-  const signatureY = pageHeight - 34;
+  const signatureY = pageHeight - 28;
   doc.setDrawColor(148, 163, 184);
   doc.setLineWidth(0.3);
 
   // Left signature (Solicitante)
   doc.line(margin + 10, signatureY, margin + 70, signatureY);
   doc.setTextColor(100, 116, 139);
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
-  doc.text(req.requester_name || 'Assinatura do Solicitante', margin + 40, signatureY + 4, { align: 'center' });
+  doc.text(normalized.requester_name || 'Assinatura do Solicitante', margin + 40, signatureY + 4, { align: 'center' });
 
   // Right signature (Administrador)
   doc.line(pageWidth - margin - 70, signatureY, pageWidth - margin - 10, signatureY);
   doc.text('Assinatura da Monitoria / Gestão', pageWidth - margin - 40, signatureY + 4, { align: 'center' });
 
   // Footer text
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(148, 163, 184);
-  doc.text('Sistema de Monitoria SESI • Gestão de Ativos e Suprimentos • Documento gerado automaticamente', pageWidth / 2, pageHeight - 10, { align: 'center' });
+  doc.text('Sistema de Monitoria SESI • Gestão de Ativos e Suprimentos • Documento gerado automaticamente', pageWidth / 2, pageHeight - 8, { align: 'center' });
 
   // Download PDF
-  const sanitizedItem = (req.item_name || 'item').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-  doc.save(`solicitacao_compra_sesi_${sanitizedItem}_${req.id.slice(0, 6)}.pdf`);
+  const sanitizedName = (items[0]?.name || 'itens').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  doc.save(`solicitacao_compra_sesi_${sanitizedName}_${normalized.id.slice(0, 6)}.pdf`);
 }
 
 /**
- * Generate and download Word Document (.doc / HTML compatible) with reference link
+ * Generate Word Document (.doc / HTML compatible) with multiple items and reference links
  */
 export function generatePurchaseDoc(req: PurchaseRequest) {
-  const statusLabel = req.status === 'approved' ? 'APROVADO' : req.status === 'rejected' ? 'REPROVADO' : 'EM ESPERA';
+  const normalized = normalizePurchaseRequest(req);
+  const items = normalized.items;
+  const statusLabel = normalized.status === 'approved' ? 'APROVADO' : normalized.status === 'rejected' ? 'REPROVADO' : 'EM ESPERA';
   
+  const itemsRows = items.map((it, idx) => `
+    <tr>
+      <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
+      <td><strong>${it.name}</strong></td>
+      <td style="text-align: center;">${it.quantity} ${it.unit || 'un'}</td>
+      <td style="text-align: right;">${it.estimated_price ? `R$ ${Number(it.estimated_price).toFixed(2).replace('.', ',')}` : '-'}</td>
+      <td><a href="${it.reference_link}" target="_blank">${it.reference_link}</a></td>
+      <td>${it.technical_specs || 'Padrão'}</td>
+    </tr>
+  `).join('');
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -509,81 +585,67 @@ export function generatePurchaseDoc(req: PurchaseRequest) {
       <meta charset="utf-8">
       <title>Solicitação de Compra - SESI Monitoria</title>
       <style>
-        body { font-family: Arial, sans-serif; margin: 40px; color: #1e293b; }
-        .header { background: #0f4c81; color: white; padding: 20px; border-radius: 8px; }
-        .badge { display: inline-block; padding: 4px 12px; background: #f59e0b; color: white; font-weight: bold; border-radius: 4px; }
+        body { font-family: Arial, sans-serif; margin: 30px; color: #1e293b; }
+        .header { background: #0f4c81; color: white; padding: 16px; border-radius: 6px; }
+        .badge { display: inline-block; padding: 4px 10px; background: #f59e0b; color: white; font-weight: bold; border-radius: 4px; }
         .badge-approved { background: #10b981; }
         .badge-rejected { background: #ef4444; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+        th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 13px; text-align: left; }
         th { background: #f1f5f9; }
-        .box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
-        .link-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 15px; border-radius: 6px; }
+        .box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
         a { color: #2563eb; font-weight: bold; word-break: break-all; }
-        .signature-table { margin-top: 50px; border: none; }
-        .signature-table td { border: none; text-align: center; padding-top: 40px; }
+        .signature-table { margin-top: 40px; border: none; }
+        .signature-table td { border: none; text-align: center; padding-top: 30px; }
       </style>
     </head>
     <body>
       <div class="header">
-        <h2>SESI - SERVIÇO SOCIAL DA INDÚSTRIA</h2>
-        <p>MONITORIA & GESTÃO DE ATIVOS • SOLICITAÇÃO DE COMPRA</p>
+        <h2 style="margin: 0;">SESI - SERVIÇO SOCIAL DA INDÚSTRIA</h2>
+        <p style="margin: 4px 0 0 0; font-size: 13px;">MONITORIA & GESTÃO DE ATIVOS • REQUISIÇÃO DE COMPRAS</p>
       </div>
 
-      <p style="margin-top: 20px;">
-        <strong>Protocolo:</strong> #${req.id.slice(0, 10).toUpperCase()} | 
-        <strong>Status:</strong> <span class="badge ${req.status === 'approved' ? 'badge-approved' : req.status === 'rejected' ? 'badge-rejected' : ''}">${statusLabel}</span> |
-        <strong>Data:</strong> ${formatDate(req.created_at)}
+      <p style="margin-top: 16px; font-size: 13px;">
+        <strong>Protocolo:</strong> #${normalized.id.slice(0, 10).toUpperCase()} | 
+        <strong>Status:</strong> <span class="badge ${normalized.status === 'approved' ? 'badge-approved' : normalized.status === 'rejected' ? 'badge-rejected' : ''}">${statusLabel}</span> |
+        <strong>Data:</strong> ${formatDate(normalized.created_at)} |
+        <strong>Solicitante:</strong> ${normalized.requester_name} (${normalized.requester_department || 'Geral'})
       </p>
-
-      <table>
-        <tr>
-          <th>Solicitante</th>
-          <td>${req.requester_name || 'N/A'}</td>
-          <th>Setor / Depto</th>
-          <td>${req.requester_department || 'Não informado'}</td>
-        </tr>
-        <tr>
-          <th>Item Solicitado</th>
-          <td><strong>${req.item_name}</strong></td>
-          <th>Quantidade</th>
-          <td>${req.quantity} ${req.unit || 'un'}</td>
-        </tr>
-        <tr>
-          <th>Prioridade</th>
-          <td>${(req.priority || 'Normal').toUpperCase()}</td>
-          <th>Valor Estimado</th>
-          <td>${req.estimated_price ? `R$ ${Number(req.estimated_price).toFixed(2).replace('.', ',')}` : 'A cotar'}</td>
-        </tr>
-      </table>
 
       <div class="box">
         <strong>Justificativa da Necessidade:</strong>
-        <p>${req.justification || 'N/A'}</p>
+        <p style="margin: 4px 0 0 0; font-size: 13px;">${normalized.justification || 'N/A'}</p>
       </div>
 
-      ${req.technical_specs ? `
-      <div class="box">
-        <strong>Observações / Especificações Técnicas:</strong>
-        <p>${req.technical_specs}</p>
-      </div>` : ''}
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Item</th>
+            <th>Qtd</th>
+            <th>Valor Est.</th>
+            <th>Link de Referência</th>
+            <th>Especificação Técnica</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsRows}
+        </tbody>
+      </table>
 
-      <div class="link-box">
-        <strong>Link de Referência do Produto:</strong><br>
-        <a href="${req.reference_link}" target="_blank">${req.reference_link}</a>
-      </div>
-
-      ${req.status === 'approved' ? `
-      <div class="box" style="background: #ecfdf5; border-color: #a7f3d0; margin-top: 15px;">
+      ${normalized.status === 'approved' ? `
+      <div class="box" style="background: #ecfdf5; border-color: #a7f3d0;">
         <strong style="color: #065f46;">Autorização da Administração SESI:</strong>
-        <p style="color: #047857;">Aprovado por: ${req.approved_by || 'Admin'} em ${req.approved_at ? formatDate(req.approved_at) : formatDate(new Date())}</p>
-        ${req.approval_notes ? `<p style="color: #047857;">Obs: ${req.approval_notes}</p>` : ''}
+        <p style="color: #047857; margin: 4px 0 0 0; font-size: 13px;">
+          Aprovado por: ${normalized.approved_by || 'Admin'} em ${normalized.approved_at ? formatDate(normalized.approved_at) : formatDate(new Date())}
+          ${normalized.approval_notes ? `<br>Obs: ${normalized.approval_notes}` : ''}
+        </p>
       </div>` : ''}
 
       <table class="signature-table">
         <tr>
-          <td>________________________________________<br><strong>${req.requester_name}</strong><br>Solicitante</td>
-          <td>________________________________________<br><strong>Administração / Monitoria SESI</strong><br>Aprovador Responsável</td>
+          <td>________________________________________<br><strong>${normalized.requester_name}</strong><br>Solicitante</td>
+          <td>________________________________________<br><strong>Administração SESI</strong><br>Aprovador Responsável</td>
         </tr>
       </table>
     </body>
@@ -595,7 +657,7 @@ export function generatePurchaseDoc(req: PurchaseRequest) {
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const sanitizedItem = (req.item_name || 'item').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  const sanitizedItem = (items[0]?.name || 'itens').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
   a.href = url;
   a.download = `solicitacao_compra_sesi_${sanitizedItem}.doc`;
   document.body.appendChild(a);
@@ -605,31 +667,70 @@ export function generatePurchaseDoc(req: PurchaseRequest) {
 }
 
 /**
- * Export purchases to Excel (XLSX)
+ * Export ONLY the 4 requested columns to Excel with clickable hyperlinks:
+ * 1. Item
+ * 2. Quantidade
+ * 3. Valor Estimado
+ * 4. Link de Referência (Clickable hyperlink in Excel)
  */
 export function exportPurchasesToExcel(purchases: PurchaseRequest[]) {
-  const exportData = purchases.map(p => ({
-    'Protocolo': p.id.slice(0, 10).toUpperCase(),
-    'Solicitante': p.requester_name,
-    'Setor/Depto': p.requester_department || '',
-    'Contato': p.requester_contact || '',
-    'Item': p.item_name,
-    'Quantidade': p.quantity,
-    'Unidade': p.unit || 'un',
-    'Prioridade': (p.priority || 'Normal').toUpperCase(),
-    'Valor Estimado (R$)': p.estimated_price || 0,
-    'Status': p.status === 'approved' ? 'Aprovado' : p.status === 'rejected' ? 'Reprovado' : 'Em Espera',
-    'Link de Referência': p.reference_link,
-    'Justificativa': p.justification,
-    'Especificações': p.technical_specs || '',
-    'Data Solicitação': formatDate(p.created_at) + ' ' + formatTime(p.created_at),
-    'Aprovado Por': p.approved_by || '',
-    'Data Aprovação': p.approved_at ? formatDate(p.approved_at) : '',
-    'Motivo Rejeição': p.rejection_reason || ''
-  }));
+  // Collect all items from all requests
+  const rows: Array<{
+    item: string;
+    quantidade: string;
+    valorEstimado: string;
+    link: string;
+  }> = [];
 
-  const ws = XLSX.utils.json_to_sheet(exportData);
+  purchases.forEach(req => {
+    const normalized = normalizePurchaseRequest(req);
+    normalized.items.forEach(it => {
+      rows.push({
+        item: it.name,
+        quantidade: `${it.quantity} ${it.unit || 'un'}`,
+        valorEstimado: it.estimated_price ? `R$ ${Number(it.estimated_price).toFixed(2).replace('.', ',')}` : 'A cotar',
+        link: it.reference_link || ''
+      });
+    });
+  });
+
+  if (rows.length === 0) {
+    alert('Nenhum item disponível para exportar.');
+    return;
+  }
+
+  // Create worksheet manually to ensure proper clickable hyperlinks
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Solicitações de Compras');
-  XLSX.writeFile(wb, `compras_sesi_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const wsData: any[][] = [
+    ['Item', 'Quantidade', 'Valor Estimado', 'Link de Referência']
+  ];
+
+  rows.forEach(r => {
+    wsData.push([r.item, r.quantidade, r.valorEstimado, r.link]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Set clickable hyperlinks for column D (Link de Referência)
+  rows.forEach((r, idx) => {
+    const rowNum = idx + 2; // Row 1 is header, 1-indexed
+    const cellRef = `D${rowNum}`;
+    if (r.link && /^https?:\/\//i.test(r.link)) {
+      if (ws[cellRef]) {
+        ws[cellRef].l = { Target: r.link, Tooltip: 'Abrir link de compra' };
+        ws[cellRef].s = { font: { color: { rgb: "0563C1" }, underline: true } };
+      }
+    }
+  });
+
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 35 }, // Item
+    { wch: 15 }, // Quantidade
+    { wch: 18 }, // Valor Estimado
+    { wch: 65 }  // Link de Referência
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Lista de Compras');
+  XLSX.writeFile(wb, `lista_de_compras_sesi_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

@@ -12,26 +12,21 @@ import {
   QrCode, 
   Copy, 
   Check, 
-  Filter, 
   FileText, 
   Download, 
-  AlertCircle, 
   Building, 
   User, 
-  Tag, 
-  Link2, 
-  Eye, 
   RotateCcw,
-  Sparkles,
-  RefreshCw,
-  Printer,
-  ChevronRight
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Minus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { PurchaseRequest, PurchaseStatus, PurchasePriority } from '../types';
+import { PurchaseRequest, PurchasePriority, PurchaseItem } from '../types';
 import { 
   fetchPurchaseRequests, 
   createPurchaseRequest, 
@@ -40,10 +35,22 @@ import {
   deleteMultiplePurchaseRequests, 
   generatePurchasePDF, 
   generatePurchaseDoc, 
-  exportPurchasesToExcel 
+  exportPurchasesToExcel,
+  normalizePurchaseRequest
 } from '../lib/purchasesService';
 import { cn, formatDate, formatTime } from '../lib/utils';
 import { supabase } from '../lib/supabase';
+
+interface ManualItemForm {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  reference_link: string;
+  estimated_price: string;
+  has_technical_specs: boolean;
+  technical_specs: string;
+}
 
 export function Purchases() {
   const { user } = useAuth();
@@ -55,39 +62,42 @@ export function Purchases() {
   const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [expandedRequests, setExpandedRequests] = useState<Record<string, boolean>>({});
 
   // Modals
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<PurchaseRequest | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [approvalNotes, setApprovalNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // New Purchase Form (Admin Manual)
-  const [newReq, setNewReq] = useState({
-    requester_name: user?.name || 'Administração',
-    requester_department: 'Monitoria / TI',
-    requester_contact: '',
-    item_name: '',
-    quantity: 1,
-    unit: 'un',
-    reference_link: '',
-    justification: '',
-    technical_specs: '',
-    estimated_price: '',
-    priority: 'normal' as PurchasePriority
-  });
+  // Manual New Request Form
+  const [manualRequester, setManualRequester] = useState(user?.name || 'Administração');
+  const [manualDept, setManualDept] = useState('Monitoria / TI');
+  const [manualContact, setManualContact] = useState('');
+  const [manualJustification, setManualJustification] = useState('');
+  const [manualPriority, setManualPriority] = useState<PurchasePriority>('normal');
+  const [manualItems, setManualItems] = useState<ManualItemForm[]>([
+    {
+      id: 'it-1',
+      name: '',
+      quantity: 1,
+      unit: 'un',
+      reference_link: '',
+      estimated_price: '',
+      has_technical_specs: false,
+      technical_specs: ''
+    }
+  ]);
 
   const publicFormUrl = `${window.location.origin}/compras/solicitar`;
 
   useEffect(() => {
     loadData();
 
-    // Supabase Realtime channel for purchases
     const channel = supabase
       .channel('purchases-realtime-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_requests' }, () => {
@@ -114,6 +124,13 @@ export function Purchases() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedRequests(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
   };
 
   const handleCopyLink = () => {
@@ -157,8 +174,8 @@ export function Purchases() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Deseja apagar permanentemente a solicitação de "${name}"?`)) return;
+  const handleDelete = async (id: string) => {
+    if (!confirm('Deseja apagar permanentemente esta solicitação?')) return;
     try {
       await deletePurchaseRequest(id);
       await loadData();
@@ -191,45 +208,48 @@ export function Purchases() {
 
   const handleCreateManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newReq.item_name.trim() || !newReq.reference_link.trim() || !newReq.justification.trim()) {
-      alert('Preencha os campos obrigatórios: Item, Link de Referência e Justificativa.');
+    if (!manualJustification.trim() || manualItems.some(it => !it.name.trim() || !it.reference_link.trim())) {
+      alert('Preencha os campos obrigatórios (Item, Link e Justificativa).');
       return;
     }
 
     try {
-      let formattedUrl = newReq.reference_link.trim();
-      if (!/^https?:\/\//i.test(formattedUrl)) {
-        formattedUrl = 'https://' + formattedUrl;
-      }
+      const items: PurchaseItem[] = manualItems.map(it => {
+        let link = it.reference_link.trim();
+        if (!/^https?:\/\//i.test(link)) link = 'https://' + link;
+        return {
+          id: it.id,
+          name: it.name.trim(),
+          quantity: Number(it.quantity) || 1,
+          unit: it.unit || 'un',
+          reference_link: link,
+          estimated_price: it.estimated_price ? parseFloat(it.estimated_price.replace(',', '.')) : undefined,
+          has_technical_specs: it.has_technical_specs,
+          technical_specs: it.has_technical_specs ? it.technical_specs.trim() : undefined
+        };
+      });
 
       await createPurchaseRequest({
-        requester_name: newReq.requester_name.trim(),
-        requester_department: newReq.requester_department.trim() || undefined,
-        requester_contact: newReq.requester_contact.trim() || undefined,
-        item_name: newReq.item_name.trim(),
-        quantity: Number(newReq.quantity) || 1,
-        unit: newReq.unit,
-        reference_link: formattedUrl,
-        justification: newReq.justification.trim(),
-        technical_specs: newReq.technical_specs.trim() || undefined,
-        estimated_price: newReq.estimated_price ? parseFloat(newReq.estimated_price.replace(',', '.')) : undefined,
-        priority: newReq.priority
+        requester_name: manualRequester.trim(),
+        requester_department: manualDept.trim() || undefined,
+        requester_contact: manualContact.trim() || undefined,
+        justification: manualJustification.trim(),
+        priority: manualPriority,
+        items
       });
 
       setIsNewModalOpen(false);
-      setNewReq({
-        requester_name: user?.name || 'Administração',
-        requester_department: 'Monitoria / TI',
-        requester_contact: '',
-        item_name: '',
+      setManualJustification('');
+      setManualItems([{
+        id: 'it-1',
+        name: '',
         quantity: 1,
         unit: 'un',
         reference_link: '',
-        justification: '',
-        technical_specs: '',
         estimated_price: '',
-        priority: 'normal'
-      });
+        has_technical_specs: false,
+        technical_specs: ''
+      }]);
       await loadData();
     } catch (err: any) {
       alert('Erro ao criar solicitação: ' + err.message);
@@ -248,189 +268,193 @@ export function Purchases() {
       if (priorityFilter !== 'all' && p.priority !== priorityFilter) return false;
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
-        const matchesItem = p.item_name.toLowerCase().includes(term);
         const matchesRequester = p.requester_name.toLowerCase().includes(term);
         const matchesDept = (p.requester_department || '').toLowerCase().includes(term);
         const matchesJust = (p.justification || '').toLowerCase().includes(term);
-        const matchesSpecs = (p.technical_specs || '').toLowerCase().includes(term);
-        return matchesItem || matchesRequester || matchesDept || matchesJust || matchesSpecs;
+        const matchesAnyItem = p.items?.some(it => 
+          it.name.toLowerCase().includes(term) || 
+          (it.technical_specs || '').toLowerCase().includes(term) ||
+          it.reference_link.toLowerCase().includes(term)
+        );
+        return matchesRequester || matchesDept || matchesJust || matchesAnyItem;
       }
       return true;
     });
   }, [purchases, activeTab, priorityFilter, searchTerm]);
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Banner */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="size-12 rounded-2xl bg-sesi-blue text-white flex items-center justify-center shadow-md">
-              <ShoppingBag size={26} />
+          <div className="flex items-center gap-2.5">
+            <div className="size-10 rounded-xl bg-sesi-blue text-white flex items-center justify-center shadow-md">
+              <ShoppingBag size={22} />
             </div>
             <div>
-              <h1 className={cn("text-2xl lg:text-3xl font-black tracking-tight", isDark ? "text-white" : "text-slate-900")}>
+              <h1 className={cn("text-xl sm:text-2xl font-black tracking-tight", isDark ? "text-white" : "text-slate-900")}>
                 Gestão de Compras & Requisições
               </h1>
-              <p className={cn("text-xs font-medium mt-0.5", isDark ? "text-slate-400" : "text-slate-500")}>
-                Controle via QR Code, aprovação pelo Administrador e emissão de documentos PDF com link de referência.
+              <p className={cn("text-xs font-medium", isDark ? "text-slate-400" : "text-slate-500")}>
+                Aprovação, geração de PDF com links e exportação para Excel.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsQrModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all active:scale-95"
           >
-            <QrCode size={16} />
+            <QrCode size={15} />
             QR Code / Link
           </button>
 
           <button
             onClick={() => exportPurchasesToExcel(purchases)}
             className={cn(
-              "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider border transition-all active:scale-95",
+              "flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all active:scale-95",
               isDark ? "bg-gray-800 text-slate-300 border-gray-700 hover:bg-gray-700" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
             )}
+            title="Exporta Excel com Item, Quantidade, Valor Estimado e Link clicável"
           >
-            <FileDown size={16} />
+            <FileDown size={15} />
             Excel
           </button>
 
           <button
             onClick={() => setIsNewModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-sesi-yellow text-slate-900 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-amber-400 transition-all shadow-md shadow-sesi-yellow/20 active:scale-95"
+            className="flex items-center gap-1.5 px-4 py-2 bg-sesi-yellow text-slate-900 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-amber-400 transition-all shadow-md shadow-sesi-yellow/20 active:scale-95"
           >
-            <Plus size={16} />
+            <Plus size={15} />
             Novo Pedido
           </button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
         {/* Em Espera */}
         <motion.div
-          whileHover={{ y: -2 }}
+          whileHover={{ y: -1 }}
           onClick={() => setActiveTab('pending')}
           className={cn(
-            "p-6 rounded-3xl border cursor-pointer transition-all relative overflow-hidden",
+            "p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden",
             activeTab === 'pending'
-              ? "border-amber-400 ring-2 ring-amber-400/30 shadow-lg"
+              ? "border-amber-400 ring-2 ring-amber-400/30 shadow-md bg-amber-500/5"
               : isDark ? "bg-gray-800/40 border-gray-800" : "bg-white border-slate-200"
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="size-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
-              <Clock size={24} />
+            <div className="size-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
+              <Clock size={20} />
             </div>
-            <span className="text-3xl font-black text-amber-500">{pendingCount.toString().padStart(2, '0')}</span>
+            <span className="text-2xl font-black text-amber-500">{pendingCount.toString().padStart(2, '0')}</span>
           </div>
-          <h3 className={cn("text-base font-black mt-4", isDark ? "text-white" : "text-slate-900")}>Em Espera</h3>
-          <p className="text-xs text-slate-400 font-medium mt-0.5">Aguardando aprovação do administrador</p>
+          <h3 className={cn("text-sm font-black mt-2.5", isDark ? "text-white" : "text-slate-900")}>Em Espera</h3>
+          <p className="text-[11px] text-slate-400 font-medium">Aguardando aprovação</p>
         </motion.div>
 
         {/* Aprovados */}
         <motion.div
-          whileHover={{ y: -2 }}
+          whileHover={{ y: -1 }}
           onClick={() => setActiveTab('approved')}
           className={cn(
-            "p-6 rounded-3xl border cursor-pointer transition-all relative overflow-hidden",
+            "p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden",
             activeTab === 'approved'
-              ? "border-emerald-400 ring-2 ring-emerald-400/30 shadow-lg"
+              ? "border-emerald-400 ring-2 ring-emerald-400/30 shadow-md bg-emerald-500/5"
               : isDark ? "bg-gray-800/40 border-gray-800" : "bg-white border-slate-200"
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="size-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
-              <CheckCircle2 size={24} />
+            <div className="size-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
+              <CheckCircle2 size={20} />
             </div>
-            <span className="text-3xl font-black text-emerald-500">{approvedCount.toString().padStart(2, '0')}</span>
+            <span className="text-2xl font-black text-emerald-500">{approvedCount.toString().padStart(2, '0')}</span>
           </div>
-          <h3 className={cn("text-base font-black mt-4", isDark ? "text-white" : "text-slate-900")}>Aprovados</h3>
-          <p className="text-xs text-slate-400 font-medium mt-0.5">Prontos para compra & PDF emitido</p>
+          <h3 className={cn("text-sm font-black mt-2.5", isDark ? "text-white" : "text-slate-900")}>Aprovados</h3>
+          <p className="text-[11px] text-slate-400 font-medium">Prontos para compra & PDF</p>
         </motion.div>
 
         {/* Reprovados */}
         <motion.div
-          whileHover={{ y: -2 }}
+          whileHover={{ y: -1 }}
           onClick={() => setActiveTab('rejected')}
           className={cn(
-            "p-6 rounded-3xl border cursor-pointer transition-all relative overflow-hidden",
+            "p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden",
             activeTab === 'rejected'
-              ? "border-rose-400 ring-2 ring-rose-400/30 shadow-lg"
+              ? "border-rose-400 ring-2 ring-rose-400/30 shadow-md bg-rose-500/5"
               : isDark ? "bg-gray-800/40 border-gray-800" : "bg-white border-slate-200"
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="size-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center font-bold">
-              <XCircle size={24} />
+            <div className="size-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center font-bold">
+              <XCircle size={20} />
             </div>
-            <span className="text-3xl font-black text-rose-500">{rejectedCount.toString().padStart(2, '0')}</span>
+            <span className="text-2xl font-black text-rose-500">{rejectedCount.toString().padStart(2, '0')}</span>
           </div>
-          <h3 className={cn("text-base font-black mt-4", isDark ? "text-white" : "text-slate-900")}>Reprovados</h3>
-          <p className="text-xs text-slate-400 font-medium mt-0.5">Na lista para serem apagados</p>
+          <h3 className={cn("text-sm font-black mt-2.5", isDark ? "text-white" : "text-slate-900")}>Reprovados</h3>
+          <p className="text-[11px] text-slate-400 font-medium">Na lista para serem apagados</p>
         </motion.div>
       </div>
 
       {/* Tabs & Search Header */}
-      <div className={cn("p-4 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-4", isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200")}>
+      <div className={cn("p-3 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-3", isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200")}>
         {/* Tab Buttons */}
-        <div className="flex p-1 bg-slate-100 dark:bg-gray-800 rounded-2xl w-full md:w-auto">
+        <div className="flex p-1 bg-slate-100 dark:bg-gray-800 rounded-xl w-full md:w-auto">
           <button
             onClick={() => setActiveTab('pending')}
             className={cn(
-              "flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2",
+              "flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5",
               activeTab === 'pending'
-                ? "bg-amber-500 text-white shadow-md"
+                ? "bg-amber-500 text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             )}
           >
-            <Clock size={14} />
+            <Clock size={13} />
             Em Espera ({pendingCount})
           </button>
 
           <button
             onClick={() => setActiveTab('approved')}
             className={cn(
-              "flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2",
+              "flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5",
               activeTab === 'approved'
-                ? "bg-emerald-600 text-white shadow-md"
+                ? "bg-emerald-600 text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             )}
           >
-            <CheckCircle2 size={14} />
+            <CheckCircle2 size={13} />
             Aprovados ({approvedCount})
           </button>
 
           <button
             onClick={() => setActiveTab('rejected')}
             className={cn(
-              "flex-1 md:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2",
+              "flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5",
               activeTab === 'rejected'
-                ? "bg-rose-600 text-white shadow-md"
+                ? "bg-rose-600 text-white shadow-sm"
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             )}
           >
-            <XCircle size={14} />
+            <XCircle size={13} />
             Reprovados ({rejectedCount})
           </button>
         </div>
 
         {/* Search & Actions */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-64">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          <div className="relative flex-1 md:w-56">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Buscar item, solicitante..."
+              placeholder="Buscar itens, solicitante..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={cn(
-                "w-full pl-9 pr-4 py-2 rounded-xl text-xs font-bold outline-none transition-all",
-                isDark ? "bg-gray-800 text-white placeholder-gray-500 border border-gray-700 focus:border-sesi-blue" : "bg-slate-100 text-slate-900 border-none focus:ring-2 focus:ring-sesi-blue/20"
+                "w-full pl-8 pr-3 py-1.5 rounded-lg text-xs font-bold outline-none transition-all",
+                isDark ? "bg-gray-800 text-white placeholder-gray-500 border border-gray-700" : "bg-slate-100 text-slate-900 border-none"
               )}
             />
           </div>
@@ -439,11 +463,11 @@ export function Purchases() {
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
             className={cn(
-              "px-3 py-2 rounded-xl text-xs font-bold outline-none cursor-pointer",
+              "px-2.5 py-1.5 rounded-lg text-xs font-bold outline-none cursor-pointer",
               isDark ? "bg-gray-800 text-white border border-gray-700" : "bg-slate-100 text-slate-800"
             )}
           >
-            <option value="all">Todas Prioridades</option>
+            <option value="all">Prioridades</option>
             <option value="baixa">Baixa</option>
             <option value="normal">Normal</option>
             <option value="alta">Alta</option>
@@ -453,10 +477,10 @@ export function Purchases() {
           {activeTab === 'rejected' && rejectedCount > 0 && (
             <button
               onClick={handleDeleteAllRejected}
-              className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-1.5 shrink-0"
+              className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-1 shrink-0"
               title="Apagar todos os reprovados"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
               Limpar Todos
             </button>
           )}
@@ -465,36 +489,31 @@ export function Purchases() {
 
       {/* Main Content List */}
       {isLoading ? (
-        <div className="py-24 text-center">
-          <div className="size-12 border-4 border-sesi-blue/30 border-t-sesi-blue rounded-full animate-spin mx-auto mb-4" />
+        <div className="py-20 text-center">
+          <div className="size-10 border-4 border-sesi-blue/30 border-t-sesi-blue rounded-full animate-spin mx-auto mb-3" />
           <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Carregando solicitações...</p>
         </div>
       ) : filteredPurchases.length === 0 ? (
-        <div className={cn("py-20 text-center rounded-[2.5rem] border-2 border-dashed p-8", isDark ? "bg-gray-900/40 border-gray-800" : "bg-white border-slate-200")}>
-          <ShoppingBag size={48} className="mx-auto mb-3 text-slate-300 dark:text-gray-700" />
-          <h3 className={cn("text-lg font-black", isDark ? "text-white" : "text-slate-900")}>
+        <div className={cn("py-16 text-center rounded-2xl border-2 border-dashed p-6", isDark ? "bg-gray-900/40 border-gray-800" : "bg-white border-slate-200")}>
+          <ShoppingBag size={40} className="mx-auto mb-2 text-slate-300 dark:text-gray-700" />
+          <h3 className={cn("text-base font-black", isDark ? "text-white" : "text-slate-900")}>
             Nenhuma solicitação encontrada
           </h3>
-          <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto mt-1">
+          <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto mt-0.5">
             {activeTab === 'pending'
-              ? 'Não há solicitações de compras aguardando aprovação no momento.'
+              ? 'Não há solicitações aguardando aprovação.'
               : activeTab === 'approved'
                 ? 'Nenhuma solicitação aprovada ainda.'
                 : 'A lista de reprovados está vazia.'}
           </p>
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <button
-              onClick={() => setIsQrModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-500 transition-colors uppercase tracking-wider"
-            >
-              Ver QR Code para Professores
-            </button>
-          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-3.5">
           <AnimatePresence mode="popLayout">
             {filteredPurchases.map((purchase) => {
+              const isExpanded = !!expandedRequests[purchase.id];
+              const totalEst = purchase.items.reduce((acc, it) => acc + ((it.estimated_price || 0) * (it.quantity || 1)), 0);
+
               return (
                 <motion.div
                   key={purchase.id}
@@ -503,16 +522,17 @@ export function Purchases() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   className={cn(
-                    "p-6 rounded-[2rem] border transition-all relative group flex flex-col lg:flex-row lg:items-center justify-between gap-6",
-                    isDark ? "bg-gray-900 border-gray-800 hover:border-gray-700" : "bg-white border-slate-200 hover:shadow-md",
-                    purchase.priority === 'urgente' && "border-rose-500/40 ring-1 ring-rose-500/20"
+                    "p-5 rounded-2xl border transition-all relative flex flex-col lg:flex-row lg:items-start justify-between gap-5",
+                    isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200 hover:shadow-md",
+                    purchase.priority === 'urgente' && "border-rose-500/40"
                   )}
                 >
                   {/* Left Details */}
                   <div className="flex-1 space-y-3">
+                    {/* Header line */}
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={cn(
-                        "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider",
+                        "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider",
                         purchase.priority === 'urgente'
                           ? "bg-rose-500 text-white animate-pulse"
                           : purchase.priority === 'alta'
@@ -526,86 +546,123 @@ export function Purchases() {
                         {formatDate(purchase.created_at)} às {formatTime(purchase.created_at)}
                       </span>
 
-                      <span className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
                         #{purchase.id.slice(0, 8).toUpperCase()}
                       </span>
-                    </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-2">
-                      <h3 className={cn("text-xl font-black tracking-tight", isDark ? "text-white" : "text-slate-900")}>
-                        {purchase.item_name}
-                      </h3>
-                      <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-black rounded-lg shrink-0">
-                        {purchase.quantity} {purchase.unit || 'un'}
+                      <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-black rounded">
+                        {purchase.items.length} {purchase.items.length === 1 ? 'item' : 'itens'}
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-500 dark:text-slate-400">
-                      <div className="flex items-center gap-1.5">
-                        <User size={14} className="text-sesi-blue" />
-                        <span className={isDark ? "text-slate-300" : "text-slate-700"}>{purchase.requester_name}</span>
+                    {/* Solicitante info */}
+                    <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1">
+                        <User size={13} className="text-sesi-blue" />
+                        <span className={isDark ? "text-slate-200" : "text-slate-800"}>{purchase.requester_name}</span>
                       </div>
 
                       {purchase.requester_department && (
-                        <div className="flex items-center gap-1.5">
-                          <Building size={14} className="text-amber-500" />
+                        <div className="flex items-center gap-1">
+                          <Building size={13} className="text-amber-500" />
                           <span>{purchase.requester_department}</span>
                         </div>
                       )}
 
-                      {purchase.estimated_price && (
-                        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                          <span>Est: R$ {Number(purchase.estimated_price).toFixed(2).replace('.', ',')}</span>
-                        </div>
+                      {totalEst > 0 && (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                          Total Est: R$ {totalEst.toFixed(2).replace('.', ',')}
+                        </span>
                       )}
                     </div>
 
-                    {/* Justification snippet */}
-                    <div className="p-3 bg-slate-50 dark:bg-gray-800/60 rounded-xl border border-slate-100 dark:border-gray-800">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Justificativa:</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed font-medium">
+                    {/* Justification Box */}
+                    <div className="p-2.5 bg-slate-50 dark:bg-gray-800/60 rounded-xl border border-slate-100 dark:border-gray-800">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">Justificativa:</span>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                         "{purchase.justification}"
                       </p>
                     </div>
 
-                    {/* Technical Specs if exists */}
-                    {purchase.technical_specs && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
-                        <strong className="text-[10px] uppercase font-black tracking-wider text-slate-400">Especificações: </strong>
-                        <span>{purchase.technical_specs}</span>
+                    {/* Items List (Distributed view) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          Itens da Solicitação ({purchase.items.length}):
+                        </span>
+                        {purchase.items.length > 2 && (
+                          <button
+                            onClick={() => toggleExpand(purchase.id)}
+                            className="text-[10px] font-bold text-blue-500 hover:underline flex items-center gap-0.5"
+                          >
+                            {isExpanded ? 'Ver menos' : `Ver todos (${purchase.items.length})`}
+                            {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          </button>
+                        )}
                       </div>
-                    )}
 
-                    {/* Rejection / Approval Notes info */}
+                      <div className="space-y-1.5">
+                        {(isExpanded ? purchase.items : purchase.items.slice(0, 2)).map((it, idx) => (
+                          <div
+                            key={it.id || idx}
+                            className="p-2.5 bg-slate-100/70 dark:bg-gray-800/40 rounded-xl border border-slate-200/50 dark:border-gray-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                          >
+                            <div className="space-y-0.5 flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
+                                  {idx + 1}. {it.name}
+                                </span>
+                                <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[10px] font-black rounded shrink-0">
+                                  {it.quantity} {it.unit || 'un'}
+                                </span>
+                              </div>
+
+                              {it.technical_specs && (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                  <strong className="text-[9px] uppercase font-bold text-amber-500">Spec: </strong>
+                                  {it.technical_specs}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {it.estimated_price && (
+                                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                  R$ {Number(it.estimated_price).toFixed(2).replace('.', ',')}
+                                </span>
+                              )}
+                              <a
+                                href={it.reference_link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 rounded-lg text-[10px] font-black flex items-center gap-1 transition-colors"
+                              >
+                                <ExternalLink size={11} /> Link
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Rejection / Approval Notes */}
                     {purchase.status === 'rejected' && purchase.rejection_reason && (
-                      <div className="p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/40 rounded-xl text-xs text-rose-700 dark:text-rose-300">
+                      <div className="p-2.5 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/40 rounded-xl text-xs text-rose-700 dark:text-rose-300">
                         <strong>Motivo da Reprovação: </strong> {purchase.rejection_reason}
                       </div>
                     )}
 
                     {purchase.status === 'approved' && purchase.approved_by && (
-                      <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle2 size={14} />
-                        <span>Aprovado por {purchase.approved_by} {purchase.approved_at && `em ${formatDate(purchase.approved_at)}`}</span>
+                      <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <CheckCircle2 size={13} />
+                        <span>Aprovado por {purchase.approved_by} em {formatDate(purchase.approved_at || purchase.updated_at || new Date())}</span>
                         {purchase.approval_notes && <span className="text-slate-400 italic">("{purchase.approval_notes}")</span>}
                       </div>
                     )}
                   </div>
 
                   {/* Right Actions */}
-                  <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-gray-800 pt-4 lg:pt-0 lg:pl-6">
-                    {/* Direct Reference Link Button */}
-                    <a
-                      href={purchase.reference_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
-                      title={purchase.reference_link}
-                    >
-                      <ExternalLink size={14} />
-                      Link Referência
-                    </a>
-
+                  <div className="flex flex-row lg:flex-col gap-2 shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-gray-800 pt-3 lg:pt-0 lg:pl-5">
                     {/* Em Espera Actions */}
                     {purchase.status === 'pending' && (
                       <>
@@ -614,9 +671,9 @@ export function Purchases() {
                             setSelectedPurchase(purchase);
                             setIsApproveModalOpen(true);
                           }}
-                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                          className="flex-1 lg:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
                         >
-                          <CheckCircle2 size={16} />
+                          <CheckCircle2 size={14} />
                           APROVAR
                         </button>
 
@@ -625,9 +682,9 @@ export function Purchases() {
                             setSelectedPurchase(purchase);
                             setIsRejectModalOpen(true);
                           }}
-                          className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-rose-600/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                          className="flex-1 lg:flex-none px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
                         >
-                          <XCircle size={16} />
+                          <XCircle size={14} />
                           REPROVAR
                         </button>
                       </>
@@ -638,28 +695,28 @@ export function Purchases() {
                       <>
                         <button
                           onClick={() => generatePurchasePDF(purchase)}
-                          className="px-4 py-2.5 bg-sesi-blue hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+                          className="flex-1 lg:flex-none px-3.5 py-2 bg-sesi-blue hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
                         >
-                          <Download size={14} />
+                          <Download size={13} />
                           Baixar PDF
                         </button>
 
                         <button
                           onClick={() => generatePurchaseDoc(purchase)}
                           className={cn(
-                            "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex items-center justify-center gap-2",
+                            "flex-1 lg:flex-none px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex items-center justify-center gap-1.5",
                             isDark ? "bg-gray-800 text-slate-300 border-gray-700 hover:bg-gray-700" : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                           )}
                         >
-                          <FileText size={14} />
-                          Baixar .DOC
+                          <FileText size={13} />
+                          DOC
                         </button>
 
                         <button
                           onClick={() => handleRevertToPending(purchase.id)}
-                          className="text-[10px] font-black text-slate-400 hover:text-amber-500 uppercase tracking-widest text-center transition-colors py-1"
+                          className="text-[10px] font-black text-slate-400 hover:text-amber-500 uppercase tracking-widest text-center transition-colors py-0.5"
                         >
-                          Reverter para Em Espera
+                          Reverter
                         </button>
                       </>
                     )}
@@ -668,18 +725,18 @@ export function Purchases() {
                     {purchase.status === 'rejected' && (
                       <>
                         <button
-                          onClick={() => handleDelete(purchase.id, purchase.item_name)}
-                          className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+                          onClick={() => handleDelete(purchase.id)}
+                          className="flex-1 lg:flex-none px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
                         >
-                          <Trash2 size={16} />
-                          APAGAR ITEM
+                          <Trash2 size={14} />
+                          APAGAR
                         </button>
 
                         <button
                           onClick={() => handleRevertToPending(purchase.id)}
-                          className="px-4 py-2 bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                          className="flex-1 lg:flex-none px-3 py-1.5 bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
                         >
-                          <RotateCcw size={14} />
+                          <RotateCcw size={12} />
                           Reavaliar
                         </button>
                       </>
@@ -699,36 +756,36 @@ export function Purchases() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className={cn(
-              "w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden",
+              "w-full max-w-sm rounded-3xl p-6 shadow-2xl relative",
               isDark ? "bg-gray-900 border border-gray-800 text-white" : "bg-white text-slate-900"
             )}
           >
-            <div className="text-center mb-6">
-              <div className="size-16 bg-blue-500/10 text-blue-500 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-inner">
-                <QrCode size={32} />
+            <div className="text-center mb-4">
+              <div className="size-12 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                <QrCode size={24} />
               </div>
-              <h3 className="text-2xl font-black">QR Code para Solicitações</h3>
-              <p className="text-xs text-slate-400 font-medium mt-1">
-                Professores e colaboradores apontam a câmera do celular para preencher o formulário.
+              <h3 className="text-lg font-black">QR Code de Compras</h3>
+              <p className="text-xs text-slate-400 font-medium">
+                Professores apontam a câmera para abrir o formulário.
               </p>
             </div>
 
-            <div className="p-6 bg-slate-50 dark:bg-slate-950 rounded-3xl border-2 border-slate-100 dark:border-gray-800 flex items-center justify-center mb-6 shadow-inner">
+            <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-gray-800 flex items-center justify-center mb-4">
               <QRCodeSVG
                 value={publicFormUrl}
-                size={200}
+                size={180}
                 level="H"
                 includeMargin={false}
-                className="rounded-xl"
+                className="rounded-lg"
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               <button
                 onClick={handleCopyLink}
-                className="w-full py-4 bg-sesi-yellow text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-amber-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-sesi-yellow/20"
+                className="w-full py-3 bg-sesi-yellow text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl hover:bg-amber-400 transition-all flex items-center justify-center gap-2 shadow-md"
               >
-                {copiedLink ? <Check size={18} /> : <Copy size={18} />}
+                {copiedLink ? <Check size={16} /> : <Copy size={16} />}
                 {copiedLink ? 'LINK COPIADO!' : 'COPIAR LINK DO FORMULÁRIO'}
               </button>
 
@@ -737,17 +794,17 @@ export function Purchases() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className={cn(
-                  "w-full py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 border transition-all",
+                  "w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border transition-all",
                   isDark ? "bg-gray-800 text-slate-300 border-gray-700 hover:bg-gray-700" : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
                 )}
               >
-                <ExternalLink size={16} />
+                <ExternalLink size={14} />
                 Abrir Formulário no Navegador
               </a>
 
               <button
                 onClick={() => setIsQrModalOpen(false)}
-                className="w-full py-3 text-xs font-black text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 uppercase tracking-widest"
+                className="w-full py-2 text-xs font-black text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 uppercase tracking-wider"
               >
                 Fechar
               </button>
@@ -763,48 +820,48 @@ export function Purchases() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className={cn(
-              "w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl",
+              "w-full max-w-md rounded-3xl p-6 shadow-2xl",
               isDark ? "bg-gray-900 border border-gray-800 text-white" : "bg-white text-slate-900"
             )}
           >
-            <div className="flex items-center gap-3 mb-4 text-emerald-500">
-              <CheckCircle2 size={28} />
-              <h3 className="text-xl font-black">Aprovar Solicitação de Compra</h3>
+            <div className="flex items-center gap-2.5 mb-3 text-emerald-500">
+              <CheckCircle2 size={24} />
+              <h3 className="text-lg font-black">Aprovar Solicitação de Compra</h3>
             </div>
 
-            <p className="text-xs text-slate-400 font-medium mb-4">
-              Item: <strong>{selectedPurchase.item_name}</strong> ({selectedPurchase.quantity} {selectedPurchase.unit || 'un'})<br />
-              Solicitante: <strong>{selectedPurchase.requester_name}</strong>
+            <p className="text-xs text-slate-400 font-medium mb-3">
+              Solicitante: <strong>{selectedPurchase.requester_name}</strong><br />
+              Total de itens: <strong>{selectedPurchase.items.length} item(ns)</strong>
             </p>
 
-            <div className="space-y-2 mb-6">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+            <div className="space-y-1.5 mb-5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Observações da Aprovação / Orientações (Opcional)
               </label>
               <textarea
                 rows={3}
                 value={approvalNotes}
                 onChange={(e) => setApprovalNotes(e.target.value)}
-                placeholder="Ex: Compra autorizada para o laboratório 1. Realizar cotação com 3 fornecedores..."
+                placeholder="Ex: Compra autorizada. Realizar cotação com fornecedores credenciados..."
                 className={cn(
-                  "w-full p-4 rounded-2xl text-xs font-medium outline-none resize-none",
+                  "w-full p-3 rounded-xl text-xs font-medium outline-none resize-none",
                   isDark ? "bg-gray-800 text-white border border-gray-700 focus:border-emerald-500" : "bg-slate-100 text-slate-900 focus:ring-2 focus:ring-emerald-500/20"
                 )}
               />
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2.5">
               <button
                 type="button"
                 onClick={() => { setIsApproveModalOpen(false); setSelectedPurchase(null); }}
-                className={cn("flex-1 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider", isDark ? "bg-gray-800 text-slate-300" : "bg-slate-100 text-slate-600")}
+                className={cn("flex-1 py-2.5 rounded-xl text-xs font-black uppercase", isDark ? "bg-gray-800 text-slate-300" : "bg-slate-100 text-slate-600")}
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleApprove}
-                className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/20 transition-all"
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-600/20 transition-all"
               >
                 Confirmar Aprovação
               </button>
@@ -820,49 +877,49 @@ export function Purchases() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className={cn(
-              "w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl",
+              "w-full max-w-md rounded-3xl p-6 shadow-2xl",
               isDark ? "bg-gray-900 border border-gray-800 text-white" : "bg-white text-slate-900"
             )}
           >
-            <div className="flex items-center gap-3 mb-4 text-rose-500">
-              <XCircle size={28} />
-              <h3 className="text-xl font-black">Reprovar Solicitação</h3>
+            <div className="flex items-center gap-2.5 mb-3 text-rose-500">
+              <XCircle size={24} />
+              <h3 className="text-lg font-black">Reprovar Solicitação</h3>
             </div>
 
-            <p className="text-xs text-slate-400 font-medium mb-4">
-              Item: <strong>{selectedPurchase.item_name}</strong><br />
-              Solicitante: <strong>{selectedPurchase.requester_name}</strong>
+            <p className="text-xs text-slate-400 font-medium mb-3">
+              Solicitante: <strong>{selectedPurchase.requester_name}</strong><br />
+              Total de itens: <strong>{selectedPurchase.items.length} item(ns)</strong>
             </p>
 
-            <div className="space-y-2 mb-6">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Motivo da Reprovação (Obrigatório) <span className="text-rose-400">*</span>
+            <div className="space-y-1.5 mb-5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Motivo da Reprovação <span className="text-rose-400">*</span>
               </label>
               <textarea
                 required
                 rows={3}
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Ex: Já possuímos este item em estoque no Almoxarifado / Orçamento indisponível para o trimestre..."
+                placeholder="Ex: Item já disponível no almoxarifado / Orçamento indisponível..."
                 className={cn(
-                  "w-full p-4 rounded-2xl text-xs font-medium outline-none resize-none",
+                  "w-full p-3 rounded-xl text-xs font-medium outline-none resize-none",
                   isDark ? "bg-gray-800 text-white border border-gray-700 focus:border-rose-500" : "bg-slate-100 text-slate-900 focus:ring-2 focus:ring-rose-500/20"
                 )}
               />
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2.5">
               <button
                 type="button"
                 onClick={() => { setIsRejectModalOpen(false); setSelectedPurchase(null); }}
-                className={cn("flex-1 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider", isDark ? "bg-gray-800 text-slate-300" : "bg-slate-100 text-slate-600")}
+                className={cn("flex-1 py-2.5 rounded-xl text-xs font-black uppercase", isDark ? "bg-gray-800 text-slate-300" : "bg-slate-100 text-slate-600")}
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleReject}
-                className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-600/20 transition-all"
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-rose-600/20 transition-all"
               >
                 Confirmar Reprovação
               </button>
@@ -871,94 +928,54 @@ export function Purchases() {
         </div>
       )}
 
-      {/* New Manual Request Modal */}
+      {/* New Manual Multi-Item Request Modal (Admin) */}
       {isNewModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className={cn(
-              "w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] p-8 shadow-2xl",
+              "w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl space-y-4",
               isDark ? "bg-gray-900 border border-gray-800 text-white" : "bg-white text-slate-900"
             )}
           >
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-gray-800 mb-6">
-              <h3 className="text-xl font-black">Nova Solicitação de Compra (Admin)</h3>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-gray-800">
+              <h3 className="text-lg font-black">Nova Solicitação de Compra</h3>
               <button
                 onClick={() => setIsNewModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white"
               >
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleCreateManual} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Solicitante</label>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Solicitante</label>
                   <input
                     required
-                    value={newReq.requester_name}
-                    onChange={(e) => setNewReq({ ...newReq, requester_name: e.target.value })}
-                    className={cn("w-full h-12 px-4 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
+                    value={manualRequester}
+                    onChange={(e) => setManualRequester(e.target.value)}
+                    className={cn("w-full h-10 px-3 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Departamento / Setor</label>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Setor</label>
                   <input
-                    value={newReq.requester_department}
-                    onChange={(e) => setNewReq({ ...newReq, requester_department: e.target.value })}
-                    className={cn("w-full h-12 px-4 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Item / Material *</label>
-                <input
-                  required
-                  placeholder="Ex: Teclado sem fio / Adaptador VGA para HDMI"
-                  value={newReq.item_name}
-                  onChange={(e) => setNewReq({ ...newReq, item_name: e.target.value })}
-                  className={cn("w-full h-12 px-4 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Quantidade</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={newReq.quantity}
-                    onChange={(e) => setNewReq({ ...newReq, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                    className={cn("w-full h-12 px-4 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
+                    value={manualDept}
+                    onChange={(e) => setManualDept(e.target.value)}
+                    className={cn("w-full h-10 px-3 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unidade</label>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Prioridade</label>
                   <select
-                    value={newReq.unit}
-                    onChange={(e) => setNewReq({ ...newReq, unit: e.target.value })}
-                    className={cn("w-full h-12 px-3 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
-                  >
-                    <option value="un">un</option>
-                    <option value="cx">cx</option>
-                    <option value="pct">pct</option>
-                    <option value="kit">kit</option>
-                    <option value="m">m</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Prioridade</label>
-                  <select
-                    value={newReq.priority}
-                    onChange={(e) => setNewReq({ ...newReq, priority: e.target.value as PurchasePriority })}
-                    className={cn("w-full h-12 px-3 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
+                    value={manualPriority}
+                    onChange={(e) => setManualPriority(e.target.value as PurchasePriority)}
+                    className={cn("w-full h-10 px-2 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
                   >
                     <option value="baixa">Baixa</option>
                     <option value="normal">Normal</option>
@@ -969,51 +986,140 @@ export function Purchases() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Link de Referência *</label>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://..."
-                  value={newReq.reference_link}
-                  onChange={(e) => setNewReq({ ...newReq, reference_link: e.target.value })}
-                  className={cn("w-full h-12 px-4 rounded-xl text-xs font-bold outline-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Justificativa *</label>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Justificativa *</label>
                 <textarea
                   required
                   rows={2}
-                  placeholder="Explique o motivo da compra..."
-                  value={newReq.justification}
-                  onChange={(e) => setNewReq({ ...newReq, justification: e.target.value })}
-                  className={cn("w-full p-3 rounded-xl text-xs font-medium outline-none resize-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
+                  value={manualJustification}
+                  onChange={(e) => setManualJustification(e.target.value)}
+                  placeholder="Motivo da compra..."
+                  className={cn("w-full p-2.5 rounded-xl text-xs font-medium outline-none resize-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Observações / Especificação Técnica</label>
-                <textarea
-                  rows={2}
-                  placeholder="Voltagem, modelo, tamanho..."
-                  value={newReq.technical_specs}
-                  onChange={(e) => setNewReq({ ...newReq, technical_specs: e.target.value })}
-                  className={cn("w-full p-3 rounded-xl text-xs font-medium outline-none resize-none", isDark ? "bg-gray-800 text-white" : "bg-slate-100 text-slate-900")}
-                />
+              {/* Items in Manual Form */}
+              <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-gray-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-500">
+                    Itens ({manualItems.length})
+                  </span>
+                </div>
+
+                {manualItems.map((item, idx) => (
+                  <div key={item.id} className="p-3.5 bg-slate-50 dark:bg-gray-800/80 rounded-2xl border border-slate-200 dark:border-gray-700 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase text-blue-500">Item #{idx + 1}</span>
+                      {manualItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setManualItems(manualItems.filter(i => i.id !== item.id))}
+                          className="text-rose-500 text-[10px] font-bold"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      required
+                      placeholder="Nome do Item *"
+                      value={item.name}
+                      onChange={(e) => setManualItems(manualItems.map(i => i.id === item.id ? { ...i, name: e.target.value } : i))}
+                      className={cn("w-full h-9 px-3 rounded-lg text-xs font-bold outline-none", isDark ? "bg-gray-900 text-white" : "bg-white text-slate-900")}
+                    />
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        value={item.quantity}
+                        onChange={(e) => setManualItems(manualItems.map(i => i.id === item.id ? { ...i, quantity: Math.max(1, parseInt(e.target.value) || 1) } : i))}
+                        placeholder="Qtd"
+                        className={cn("w-full h-9 px-2 text-center rounded-lg text-xs font-bold outline-none", isDark ? "bg-gray-900 text-white" : "bg-white text-slate-900")}
+                      />
+
+                      <select
+                        value={item.unit}
+                        onChange={(e) => setManualItems(manualItems.map(i => i.id === item.id ? { ...i, unit: e.target.value } : i))}
+                        className={cn("w-full h-9 px-2 rounded-lg text-xs font-bold outline-none", isDark ? "bg-gray-900 text-white" : "bg-white text-slate-900")}
+                      >
+                        <option value="un">un</option>
+                        <option value="cx">cx</option>
+                        <option value="pct">pct</option>
+                        <option value="kit">kit</option>
+                      </select>
+
+                      <input
+                        placeholder="Valor Est. (R$)"
+                        value={item.estimated_price}
+                        onChange={(e) => setManualItems(manualItems.map(i => i.id === item.id ? { ...i, estimated_price: e.target.value } : i))}
+                        className={cn("w-full h-9 px-2 rounded-lg text-xs font-bold outline-none", isDark ? "bg-gray-900 text-white" : "bg-white text-slate-900")}
+                      />
+                    </div>
+
+                    <input
+                      type="url"
+                      required
+                      placeholder="Link de Referência *"
+                      value={item.reference_link}
+                      onChange={(e) => setManualItems(manualItems.map(i => i.id === item.id ? { ...i, reference_link: e.target.value } : i))}
+                      className={cn("w-full h-9 px-3 rounded-lg text-xs font-bold outline-none", isDark ? "bg-gray-900 text-white" : "bg-white text-slate-900")}
+                    />
+
+                    <div>
+                      <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={item.has_technical_specs}
+                          onChange={(e) => setManualItems(manualItems.map(i => i.id === item.id ? { ...i, has_technical_specs: e.target.checked } : i))}
+                          className="size-3.5 rounded"
+                        />
+                        Especificação Técnica
+                      </label>
+
+                      {item.has_technical_specs && (
+                        <textarea
+                          rows={2}
+                          value={item.technical_specs}
+                          onChange={(e) => setManualItems(manualItems.map(i => i.id === item.id ? { ...i, technical_specs: e.target.value } : i))}
+                          placeholder="Voltagem, modelo, tamanho..."
+                          className={cn("w-full p-2 mt-1.5 rounded-lg text-xs font-medium outline-none resize-none", isDark ? "bg-gray-900 text-white" : "bg-white text-slate-900")}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setManualItems([...manualItems, {
+                    id: 'it-' + Date.now().toString(36),
+                    name: '',
+                    quantity: 1,
+                    unit: 'un',
+                    reference_link: '',
+                    estimated_price: '',
+                    has_technical_specs: false,
+                    technical_specs: ''
+                  }])}
+                  className="w-full py-2 bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold uppercase"
+                >
+                  + Adicionar Outro Item
+                </button>
               </div>
 
-              <div className="pt-4 flex gap-3">
+              <div className="pt-3 flex gap-2.5">
                 <button
                   type="button"
                   onClick={() => setIsNewModalOpen(false)}
-                  className={cn("flex-1 py-3.5 rounded-2xl text-xs font-black uppercase", isDark ? "bg-gray-800 text-slate-300" : "bg-slate-100 text-slate-600")}
+                  className={cn("flex-1 py-2.5 rounded-xl text-xs font-black uppercase", isDark ? "bg-gray-800 text-slate-300" : "bg-slate-100 text-slate-600")}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3.5 bg-sesi-yellow text-slate-950 font-black rounded-2xl text-xs uppercase hover:bg-amber-400 transition-all shadow-md shadow-sesi-yellow/20"
+                  className="flex-1 py-2.5 bg-sesi-yellow text-slate-950 font-black rounded-xl text-xs uppercase hover:bg-amber-400 transition-all shadow-md shadow-sesi-yellow/20"
                 >
                   Cadastrar Solicitação
                 </button>
