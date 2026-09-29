@@ -11,7 +11,6 @@ import {
   Sparkles, 
   Link2, 
   Clock, 
-  User, 
   Building, 
   Trash2, 
   Download,
@@ -46,6 +45,13 @@ const DEPARTMENTS = [
   'Outro Setor'
 ];
 
+function generateItemId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'item-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(36);
+}
+
 export default function PurchaseFormPublic() {
   const [requesterName, setRequesterName] = useState('');
   const [requesterDepartment, setRequesterDepartment] = useState('Coordenação Pedagógica');
@@ -56,7 +62,7 @@ export default function PurchaseFormPublic() {
   // Multi-item dynamic list with per-item justification
   const [itemsList, setItemsList] = useState<FormItemState[]>([
     {
-      id: 'item-1',
+      id: generateItemId(),
       name: '',
       quantity: 1,
       unit: 'un',
@@ -72,24 +78,30 @@ export default function PurchaseFormPublic() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submittedRequest, setSubmittedRequest] = useState<PurchaseRequest | null>(null);
 
-  const handleAddItem = () => {
-    setItemsList(prev => [
-      ...prev,
-      {
-        id: 'item-' + Date.now().toString(36),
-        name: '',
-        quantity: 1,
-        unit: 'un',
-        reference_link: '',
-        justification: '',
-        estimated_price: '',
-        has_technical_specs: false,
-        technical_specs: ''
-      }
-    ]);
+  const handleAddItem = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const newItem: FormItemState = {
+      id: generateItemId(),
+      name: '',
+      quantity: 1,
+      unit: 'un',
+      reference_link: '',
+      justification: '',
+      estimated_price: '',
+      has_technical_specs: false,
+      technical_specs: ''
+    };
+    setItemsList(prev => [...prev, newItem]);
   };
 
-  const handleRemoveItem = (id: string) => {
+  const handleRemoveItem = (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (itemsList.length <= 1) return;
     setItemsList(prev => prev.filter(it => it.id !== id));
   };
@@ -103,7 +115,11 @@ export default function PurchaseFormPublic() {
     }));
   };
 
-  const handleTestLink = (url: string) => {
+  const handleTestLink = (url: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!url.trim()) {
       alert('Por favor, informe o link antes de testar.');
       return;
@@ -149,7 +165,7 @@ export default function PurchaseFormPublic() {
         setErrorMessage(`O link de referência é obrigatório para o Item #${i + 1} (${it.name}).`);
         return;
       }
-      if (!it.justification.trim() || it.justification.trim().length < 5) {
+      if (!it.justification.trim() || it.justification.trim().length < 4) {
         setErrorMessage(`Apresente a justificativa para o Item #${i + 1} (${it.name}).`);
         return;
       }
@@ -162,14 +178,14 @@ export default function PurchaseFormPublic() {
     setIsLoading(true);
 
     try {
-      const formattedItems: PurchaseItem[] = itemsList.map(it => {
+      const formattedItems: PurchaseItem[] = itemsList.map((it, idx) => {
         let link = it.reference_link.trim();
         if (!/^https?:\/\//i.test(link)) {
           link = 'https://' + link;
         }
 
         return {
-          id: it.id,
+          id: it.id || `item-${idx + 1}`,
           name: it.name.trim(),
           quantity: Number(it.quantity) || 1,
           unit: it.unit || 'un',
@@ -205,7 +221,7 @@ export default function PurchaseFormPublic() {
     setCustomDepartment('');
     setItemsList([
       {
-        id: 'item-' + Date.now().toString(36),
+        id: generateItemId(),
         name: '',
         quantity: 1,
         unit: 'un',
@@ -267,7 +283,7 @@ export default function PurchaseFormPublic() {
               {/* Items Summary Card */}
               <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-left space-y-2.5 mb-5">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-[11px]">
-                  <span className="text-slate-500 font-bold uppercase tracking-wider">Protocolo</span>
+                  <span className="text-slate-500 font-bold uppercase tracking-wider">Protocolo Individual</span>
                   <span className="font-mono font-bold text-emerald-400">#{submittedRequest.id.slice(0, 10).toUpperCase()}</span>
                 </div>
 
@@ -277,14 +293,14 @@ export default function PurchaseFormPublic() {
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-slate-500 uppercase font-black block mb-1">Itens Solicitados</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-black block mb-1">Itens Desta Solicitação ({submittedRequest.items.length})</span>
                   <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                     {submittedRequest.items.map((it, idx) => (
                       <div key={it.id || idx} className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-xs space-y-1">
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <p className="font-bold text-slate-200">{idx + 1}. {it.name}</p>
-                            <p className="text-[10px] text-slate-400">{it.quantity} {it.unit || 'un'} {it.estimated_price ? `• Est: R$ ${it.estimated_price}` : ''}</p>
+                            <p className="text-[10px] text-slate-400">{it.quantity} {it.unit || 'un'} {it.estimated_price ? `• Est: R$ ${Number(it.estimated_price).toFixed(2).replace('.', ',')}` : ''}</p>
                           </div>
                           <a
                             href={it.reference_link}
@@ -309,16 +325,16 @@ export default function PurchaseFormPublic() {
                 <button
                   type="button"
                   onClick={() => generatePurchasePDF(submittedRequest)}
-                  className="py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                  className="py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
                 >
                   <Download size={13} />
-                  Baixar PDF da Compra
+                  Baixar PDF Desta Solicitação
                 </button>
 
                 <button
                   type="button"
                   onClick={() => generatePurchaseDoc(submittedRequest)}
-                  className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-wider rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                  className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-wider rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
                 >
                   <FileText size={13} />
                   Baixar Word (.doc)
@@ -328,20 +344,14 @@ export default function PurchaseFormPublic() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="mt-4 text-xs font-black text-amber-400 hover:underline uppercase tracking-wider block mx-auto"
+                className="mt-4 text-xs font-black text-amber-400 hover:underline uppercase tracking-wider block mx-auto cursor-pointer"
               >
                 + Fazer Nova Solicitação
               </button>
             </motion.div>
           ) : (
             /* Purchase Request Form */
-            <motion.div
-              key="form"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              className="space-y-4"
-            >
+            <div className="space-y-4">
               <div className="text-center sm:text-left">
                 <span className="px-2.5 py-0.5 bg-amber-400/10 border border-amber-400/30 text-amber-400 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 mb-1">
                   <Sparkles size={11} /> Requisição de Aquisições
@@ -415,7 +425,7 @@ export default function PurchaseFormPublic() {
                             key={dept}
                             type="button"
                             onClick={() => setRequesterDepartment(dept)}
-                            className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all text-left border ${
+                            className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all text-left border cursor-pointer ${
                               isSelected
                                 ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
                                 : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
@@ -435,7 +445,7 @@ export default function PurchaseFormPublic() {
                             key={dept}
                             type="button"
                             onClick={() => setRequesterDepartment(dept)}
-                            className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all text-left border ${
+                            className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all text-left border cursor-pointer ${
                               isSelected
                                 ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
                                 : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
@@ -474,12 +484,12 @@ export default function PurchaseFormPublic() {
                     </span>
                   </div>
 
-                  {/* List of items */}
+                  {/* List of items (Optimized without heavy animation freeze) */}
                   <div className="space-y-3.5">
                     {itemsList.map((item, index) => (
                       <div
                         key={item.id}
-                        className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-2xl space-y-2.5 relative group"
+                        className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-2xl space-y-2.5 relative transition-all"
                       >
                         <div className="flex items-center justify-between">
                           <span className="px-2 py-0.5 bg-blue-600/20 text-blue-400 text-[10px] font-black rounded-md uppercase tracking-wider">
@@ -489,8 +499,8 @@ export default function PurchaseFormPublic() {
                           {itemsList.length > 1 && (
                             <button
                               type="button"
-                              onClick={() => handleRemoveItem(item.id)}
-                              className="text-slate-500 hover:text-rose-400 transition-colors p-1 flex items-center gap-1 text-[10px] font-bold"
+                              onClick={(e) => handleRemoveItem(item.id, e)}
+                              className="text-slate-500 hover:text-rose-400 transition-colors p-1 flex items-center gap-1 text-[10px] font-bold cursor-pointer"
                               title="Remover este item"
                             >
                               <Trash2 size={12} /> Remover
@@ -524,7 +534,7 @@ export default function PurchaseFormPublic() {
                               <button
                                 type="button"
                                 onClick={() => handleUpdateItem(item.id, 'quantity', Math.max(1, item.quantity - 1))}
-                                className="size-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center shrink-0"
+                                className="size-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center shrink-0 cursor-pointer"
                               >
                                 <Minus size={13} />
                               </button>
@@ -539,7 +549,7 @@ export default function PurchaseFormPublic() {
                               <button
                                 type="button"
                                 onClick={() => handleUpdateItem(item.id, 'quantity', item.quantity + 1)}
-                                className="size-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center shrink-0"
+                                className="size-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center shrink-0 cursor-pointer"
                               >
                                 <Plus size={13} />
                               </button>
@@ -584,13 +594,13 @@ export default function PurchaseFormPublic() {
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <label className="text-[10px] font-black text-blue-400 uppercase tracking-wider flex items-center gap-1">
-                              <Link2 size={11} /> Link de Referência <span className="text-rose-400">*</span>
+                              <Link2 size={11} /> Link de Referência / Produto <span className="text-rose-400">*</span>
                             </label>
                             {item.reference_link.trim() && (
                               <button
                                 type="button"
-                                onClick={() => handleTestLink(item.reference_link)}
-                                className="text-[10px] font-black text-amber-400 hover:underline uppercase tracking-wider flex items-center gap-0.5"
+                                onClick={(e) => handleTestLink(item.reference_link, e)}
+                                className="text-[10px] font-black text-amber-400 hover:underline uppercase tracking-wider flex items-center gap-0.5 cursor-pointer"
                               >
                                 <ExternalLink size={10} /> Testar Link
                               </button>
@@ -607,8 +617,8 @@ export default function PurchaseFormPublic() {
                             />
                             <button
                               type="button"
-                              onClick={() => handleTestLink(item.reference_link)}
-                              className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 rounded-lg text-[10px] font-black transition-colors"
+                              onClick={(e) => handleTestLink(item.reference_link, e)}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 rounded-lg text-[10px] font-black transition-colors cursor-pointer"
                             >
                               Abrir
                             </button>
@@ -645,31 +655,24 @@ export default function PurchaseFormPublic() {
                           </label>
 
                           {/* Recommendation Message & Technical Specs Textarea */}
-                          <AnimatePresence>
-                            {item.has_technical_specs && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="space-y-2 mt-1.5 pt-1.5 border-t border-slate-800"
-                              >
-                                <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2 text-amber-300/90 text-[10px] leading-relaxed font-medium">
-                                  <Info size={14} className="shrink-0 mt-0.5 text-amber-400" />
-                                  <span>
-                                    <strong>Recomendação:</strong> As especificações técnicas são recomendadas para itens que necessitam de alta precisão (como peças com voltagem exata 110V/220V, pinagens específicas, medidas milimétricas, modelos originais ou compatibilidade estrita com os computadores e equipamentos da monitoria) para evitar compras de materiais incompatíveis.
-                                  </span>
-                                </div>
+                          {item.has_technical_specs && (
+                            <div className="space-y-2 mt-1.5 pt-1.5 border-t border-slate-800 transition-all">
+                              <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2 text-amber-300/90 text-[10px] leading-relaxed font-medium">
+                                <Info size={14} className="shrink-0 mt-0.5 text-amber-400" />
+                                <span>
+                                  <strong>Recomendação:</strong> As especificações técnicas são recomendadas para itens que necessitam de alta precisão (como peças com voltagem exata 110V/220V, pinagens específicas, medidas milimétricas, modelos originais ou compatibilidade estrita com os computadores e equipamentos da monitoria) para evitar compras de materiais incompatíveis.
+                                </span>
+                              </div>
 
-                                <textarea
-                                  rows={2}
-                                  value={item.technical_specs}
-                                  onChange={(e) => handleUpdateItem(item.id, 'technical_specs', e.target.value)}
-                                  placeholder="Ex: Voltagem 110V, conector USB-C macho, tamanho 2 metros, compatível com notebook Lenovo..."
-                                  className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium placeholder-slate-500 focus:border-amber-400 outline-none text-xs resize-none"
-                                />
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
+                              <textarea
+                                rows={2}
+                                value={item.technical_specs}
+                                onChange={(e) => handleUpdateItem(item.id, 'technical_specs', e.target.value)}
+                                placeholder="Ex: Voltagem 110V, conector USB-C macho, tamanho 2 metros, compatível com notebook Lenovo..."
+                                className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium placeholder-slate-500 focus:border-amber-400 outline-none text-xs resize-none"
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -679,7 +682,7 @@ export default function PurchaseFormPublic() {
                   <button
                     type="button"
                     onClick={handleAddItem}
-                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-dashed border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-dashed border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                   >
                     <Plus size={15} />
                     Adicionar Outro Item a esta Solicitação
@@ -688,14 +691,10 @@ export default function PurchaseFormPublic() {
 
                 {/* Error Banner */}
                 {errorMessage && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-2.5 bg-rose-500/20 border border-rose-500/40 rounded-xl flex items-center gap-2 text-rose-300 text-xs font-bold"
-                  >
+                  <div className="p-2.5 bg-rose-500/20 border border-rose-500/40 rounded-xl flex items-center gap-2 text-rose-300 text-xs font-bold">
                     <AlertCircle size={15} className="shrink-0 text-rose-400" />
                     <span>{errorMessage}</span>
-                  </motion.div>
+                  </div>
                 )}
 
                 {/* Submit Button */}
@@ -714,7 +713,7 @@ export default function PurchaseFormPublic() {
                   )}
                 </button>
               </form>
-            </motion.div>
+            </div>
           )}
         </AnimatePresence>
       </main>

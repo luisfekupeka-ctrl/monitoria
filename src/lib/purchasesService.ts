@@ -521,6 +521,22 @@ export function generatePurchasePDF(req: PurchaseRequest) {
     doc.text(`Motivo da Reprovação: ${normalized.rejection_reason || 'Item não autorizado para aquisição.'}`, margin + 3, currentY + 10);
 
     currentY += 21;
+  } else if (normalized.status === 'pending') {
+    doc.setFillColor(254, 243, 199);
+    doc.setDrawColor(252, 211, 77);
+    doc.roundedRect(margin, currentY, contentWidth, 14, 1.5, 1.5, 'FD');
+
+    doc.setTextColor(146, 64, 14);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('STATUS: SOLICITAÇÃO EM ESPERA (AGUARDANDO AVALIAÇÃO DA ADMINISTRAÇÃO)', margin + 3, currentY + 5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(180, 83, 9);
+    doc.text('Esta solicitação foi registrada no sistema da Monitoria e aguarda homologação para prosseguimento de cotação/compra.', margin + 3, currentY + 9.5);
+
+    currentY += 19;
   }
 
   // Signature lines at bottom
